@@ -1,0 +1,61 @@
+# Sobe os três serviços com um comando: docker compose up
+#
+#   db        -> PostgreSQL 16 (dados persistidos em volume)
+#   backend   -> FastAPI em http://localhost:8000
+#   frontend  -> Vite em http://localhost:5173
+#
+# O backend só inicia depois que o banco passar no healthcheck.
+
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: garantias3d
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      # Garante que o Postgres aceita conexões antes de o backend subir.
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  backend:
+    build: ./backend
+    # 'db' é o hostname do serviço dentro da rede do compose (não localhost).
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/garantias3d
+      FRONTEND_ORIGINS: '["http://localhost:5173"]'
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      # Monta o código para hot reload — editou no VS Code, recarrega sozinho.
+      - ./backend/app:/app/app
+      # Monta as migrações para que novas migrações geradas apareçam no host.
+      - ./backend/alembic/versions:/app/alembic/versions
+      # Persiste os arquivos anexados entre reinícios do container.
+      - uploads:/app/uploads
+
+  frontend:
+    build: ./frontend
+    environment:
+      VITE_API_URL: http://localhost:8000
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+    volumes:
+      - ./frontend/src:/app/src
+      # Volume anônimo evita que o node_modules do host sobrescreva o do container.
+      - /app/node_modules
+
+volumes:
+  pgdata:
+  uploads:
