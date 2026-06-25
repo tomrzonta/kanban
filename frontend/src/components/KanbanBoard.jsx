@@ -14,8 +14,9 @@ import ColumnManager from "./ColumnManager";
 function filtraBusca(t, busca) {
   const q = busca.trim().toLowerCase();
   if (!q) return true;
-  const campos = [t.titulo, t.serial_number, t.numero_nf, t.marca, t.modelo,
-                  t.fornecedor_nome, t.defeito_nome];
+  const campos = [t.codigo_interno, t.titulo, t.serial_number, t.numero_nf,
+                  t.marca, t.modelo, t.fornecedor_nome, t.defeito_nome,
+                  t.responsavel_nome, t.responsavel_username];
   return campos.some((c) => (c || "").toString().toLowerCase().includes(q));
 }
 
@@ -140,9 +141,9 @@ export default function KanbanBoard({ isAdmin }) {
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
       <div style={{ display: "flex", justifyContent: "space-between", gap: 8,
                     marginBottom: 16, flexShrink: 0, alignItems: "center" }}>
-        <input placeholder="🔍 Buscar por título, SN, NF, fabricante ou modelo…"
+        <input placeholder="🔍 Buscar por código, título, SN, NF, fabricante, modelo ou responsável…"
                value={busca} onChange={(e) => setBusca(e.target.value)}
-               style={{ maxWidth: 380 }} />
+               style={{ maxWidth: 420 }} />
         <div style={{ display: "flex", gap: 8 }}>
           {isAdmin && (
             <button onClick={() => setManageCols(true)}>⚙ Gerenciar colunas</button>

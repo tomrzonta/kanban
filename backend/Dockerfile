@@ -12,7 +12,9 @@ COPY alembic.ini .
 COPY alembic ./alembic
 COPY app ./app
 COPY entrypoint.sh .
-RUN chmod +x entrypoint.sh
+# Remove eventuais quebras de linha do Windows (CRLF) que o Git pode ter
+# inserido — sem isto, o Linux do container não executa o script (.sh).
+RUN sed -i 's/\r$//' entrypoint.sh && chmod +x entrypoint.sh
 
 EXPOSE 8000
 

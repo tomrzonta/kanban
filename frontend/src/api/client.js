@@ -44,6 +44,7 @@ export const api = {
     return res.json();
   },
   me: () => request("/api/auth/me"),
+  listSelectableUsers: () => request("/api/auth/users/selectaveis"),
   listUsers: () => request("/api/auth/users"),
   createUser: (data) =>
     request("/api/auth/users", { method: "POST", body: JSON.stringify(data) }),
@@ -111,6 +112,14 @@ export const api = {
   },
   deleteAttachment: (attId) =>
     request(`/api/tickets/attachments/${attId}`, { method: "DELETE" }),
+
+  // Recebimentos (RMA)
+  listRecebimentos: () => request("/api/recebimentos"),
+  recebimentoCondicoes: () => request("/api/recebimentos/condicoes"),
+  ticketsAbertos: (q) =>
+    request(`/api/recebimentos/tickets-abertos${q ? `?q=${encodeURIComponent(q)}` : ""}`),
+  createRecebimento: (data) =>
+    request("/api/recebimentos", { method: "POST", body: JSON.stringify(data) }),
 
   // Catálogo
   listBrands: () => request("/api/catalog/brands"),

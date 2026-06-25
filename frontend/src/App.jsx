@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import KanbanBoard from "./components/KanbanBoard";
 import Dashboard from "./pages/Dashboard";
 import Concluidos from "./pages/Concluidos";
+import Recebimentos from "./pages/Recebimentos";
 import Catalog from "./pages/Catalog";
 import Users from "./pages/Users";
 import Login from "./pages/Login";
@@ -42,6 +43,7 @@ export default function App() {
   const isAdmin = user.role === "admin";
   const TABS = [
     { id: "kanban", label: "Quadro" },
+    { id: "recebimentos", label: "Recebimentos" },
     { id: "concluidos", label: "Concluídos" },
     { id: "dashboard", label: "Dashboard" },
     ...(isAdmin ? [
@@ -90,6 +92,7 @@ export default function App() {
 
       <div className={`app-content${view !== "kanban" ? " scrollable" : ""}`}>
         {view === "kanban" && <KanbanBoard isAdmin={isAdmin} />}
+        {view === "recebimentos" && <Recebimentos />}
         {view === "concluidos" && <Concluidos isAdmin={isAdmin} />}
         {view === "dashboard" && <Dashboard />}
         {view === "catalog" && isAdmin && <Catalog />}

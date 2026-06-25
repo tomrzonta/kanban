@@ -49,6 +49,7 @@ class ColumnIn(BaseModel):
     sla_hours: int | None = None
     is_waiting_client: int = 0
     is_done: int = 0
+    is_received: int = 0
 
 
 class ColumnUpdate(BaseModel):
@@ -56,6 +57,7 @@ class ColumnUpdate(BaseModel):
     sla_hours: int | None = None
     is_waiting_client: int | None = None
     is_done: int | None = None
+    is_received: int | None = None
 
 
 class ColumnOrder(BaseModel):
@@ -74,6 +76,7 @@ class TicketIn(BaseModel):
     problema: str
     supplier_id: int | None = None
     defect_type_id: int | None = None
+    responsavel_id: int | None = None
     numero_nf: str | None = None
     notas: str | None = None
     origem: OrigemReclamacao
@@ -91,6 +94,7 @@ class TicketUpdate(BaseModel):
     problema: str | None = None
     supplier_id: int | None = None
     defect_type_id: int | None = None
+    responsavel_id: int | None = None
     numero_nf: str | None = None
     notas: str | None = None
     codigo_rastreio: str | None = None

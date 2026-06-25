@@ -101,6 +101,14 @@ export default function ColumnManager({ columns, onClose, onChange }) {
                                           e.target.checked ? 1 : 0)} />
                   Coluna final (conclusão)
                 </label>
+                <label style={{ display: "flex", alignItems: "center", gap: 4,
+                                margin: 0 }}>
+                  <input type="checkbox" defaultChecked={!!col.is_received}
+                         style={{ width: "auto" }}
+                         onChange={(e) => salvarCampo(col, "is_received",
+                                          e.target.checked ? 1 : 0)} />
+                  Destino ao receber (RMA)
+                </label>
               </div>
             </div>
           ))}

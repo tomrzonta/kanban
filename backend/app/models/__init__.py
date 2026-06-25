@@ -7,9 +7,10 @@ from app.models.kanban import (
     OrigemReclamacao, ticket_tags,
 )
 from app.models.user import User
+from app.models.recebimento import Recebimento, CONDICOES
 
 __all__ = [
     "PrinterBrand", "PrinterModel", "Supplier", "DefectType",
     "BoardColumn", "StatusTag", "Attachment", "Ticket", "TicketHistory",
-    "OrigemReclamacao", "ticket_tags", "User",
+    "OrigemReclamacao", "ticket_tags", "User", "Recebimento", "CONDICOES",
 ]

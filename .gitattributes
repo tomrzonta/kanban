@@ -1,0 +1,4 @@
+# Garante que scripts shell mantenham quebra de linha Linux (LF), mesmo quando
+# clonados/commitados no Windows. Evita o erro "no such file or directory" ao
+# executar o entrypoint dentro do container.
+*.sh text eol=lf

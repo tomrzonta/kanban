@@ -47,6 +47,35 @@ def _where(brand_id, supplier_id, defect_type_id, column_id, date_from, date_to)
     return where, params
 
 
+def _where_recebimentos(brand_id, supplier_id, defect_type_id, column_id,
+                        date_from, date_to):
+    """WHERE para recebimentos. Os filtros de fabricante/fornecedor/defeito miram
+    o ticket vinculado (r -> t); o filtro de DATA mira a data do recebimento.
+    """
+    conds = []
+    params = {}
+    if brand_id:
+        conds.append("m.brand_id = :brand_id")
+        params["brand_id"] = brand_id
+    if supplier_id:
+        conds.append("t.supplier_id = :supplier_id")
+        params["supplier_id"] = supplier_id
+    if defect_type_id:
+        conds.append("t.defect_type_id = :defect_type_id")
+        params["defect_type_id"] = defect_type_id
+    if column_id:
+        conds.append("t.column_id = :column_id")
+        params["column_id"] = column_id
+    if date_from:
+        conds.append("r.data_recebimento >= :date_from")
+        params["date_from"] = date_from
+    if date_to:
+        conds.append("r.data_recebimento <= :date_to")
+        params["date_to"] = date_to
+    where = ("WHERE " + " AND ".join(conds)) if conds else ""
+    return where, params
+
+
 # Filtros comuns a todos os endpoints (injetados como dependência).
 def filtros(
     brand_id: int | None = Query(None),
@@ -117,6 +146,9 @@ def dashboard(f: dict = Depends(filtros), db: Session = Depends(get_db)):
     por_fornecedor = agrupado("s.name", "LEFT JOIN suppliers s ON s.id = t.supplier_id")
     por_defeito = agrupado("df.name", "LEFT JOIN defect_types df ON df.id = t.defect_type_id")
     por_origem = agrupado("t.origem::text")
+    por_responsavel = agrupado(
+        "COALESCE(u.nome, u.username)",
+        "LEFT JOIN users u ON u.id = t.responsavel_id")
 
     # --- Distribuição por coluna atual (status do funil) ---
     por_coluna = [dict(r) for r in db.execute(text(f"""
@@ -148,6 +180,49 @@ def dashboard(f: dict = Depends(filtros), db: Session = Depends(get_db)):
         ORDER BY media_horas DESC
     """)).mappings().all()]
 
+    # --- Recebimentos (RMA), respeitando os filtros (data = data do recebimento) ---
+    where_rec, params_rec = _where_recebimentos(**f)
+    base_rec = f"""
+        FROM recebimentos r
+        JOIN tickets t ON t.id = r.ticket_id
+        JOIN printer_models m ON m.id = t.printer_model_id
+        JOIN printer_brands b ON b.id = m.brand_id
+        {where_rec}
+    """
+    # Total de recebimentos e soma de unidades recebidas no recorte.
+    rec_kpi = db.execute(text(f"""
+        SELECT COUNT(*) AS total, COALESCE(SUM(r.quantidade), 0) AS unidades
+        {base_rec}
+    """), params_rec).mappings().first()
+
+    def rec_agrupado(group_col, extra_join=""):
+        return [dict(x) for x in db.execute(text(f"""
+            SELECT {group_col} AS nome, COUNT(r.id) AS qtd,
+                   COALESCE(SUM(r.quantidade), 0) AS unidades
+            FROM recebimentos r
+            JOIN tickets t ON t.id = r.ticket_id
+            JOIN printer_models m ON m.id = t.printer_model_id
+            JOIN printer_brands b ON b.id = m.brand_id
+            {extra_join}
+            {where_rec}
+            GROUP BY {group_col}
+            HAVING {group_col} IS NOT NULL
+            ORDER BY qtd DESC
+        """), params_rec).mappings().all()]
+
+    rec_por_condicao = rec_agrupado("r.condicao")
+    rec_por_fabricante = rec_agrupado("b.name")
+    rec_por_modelo = rec_agrupado("m.name")
+
+    # Volume de recebimentos por mês (série temporal).
+    rec_por_periodo = [dict(x) for x in db.execute(text(f"""
+        SELECT TO_CHAR(r.data_recebimento, 'YYYY-MM') AS nome,
+               COUNT(r.id) AS qtd
+        {base_rec}
+        GROUP BY TO_CHAR(r.data_recebimento, 'YYYY-MM')
+        ORDER BY nome
+    """), params_rec).mappings().all()]
+
     return {
         "kpis": {
             "total_tickets": kpis["total_tickets"],
@@ -160,8 +235,17 @@ def dashboard(f: dict = Depends(filtros), db: Session = Depends(get_db)):
         "por_fornecedor": por_fornecedor,
         "por_defeito": por_defeito,
         "por_origem": por_origem,
+        "por_responsavel": por_responsavel,
         "por_coluna": por_coluna,
         "gargalos": gargalos,
+        "recebimentos": {
+            "total": rec_kpi["total"],
+            "unidades": rec_kpi["unidades"],
+            "por_condicao": rec_por_condicao,
+            "por_fabricante": rec_por_fabricante,
+            "por_modelo": rec_por_modelo,
+            "por_periodo": rec_por_periodo,
+        },
     }
 
 

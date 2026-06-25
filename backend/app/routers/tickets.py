@@ -15,20 +15,22 @@ router = APIRouter(prefix="/api/tickets", tags=["tickets"])
 def list_tickets(db: Session = Depends(get_db)):
     # Devolve dados achatados (com marca e modelo) que o card do front consome.
     rows = db.execute(text("""
-        SELECT t.id, t.titulo, t.problema, t.origem,
+        SELECT t.id, t.codigo_interno, t.titulo, t.problema, t.origem,
                t.numero_nf, t.codigo_rastreio, t.notas, t.serial_number,
                t.requer_contato_cliente, t.retorno_horas, t.retorno_definido_em,
                t.printer_model_id, t.quantidade, t.custo_unitario,
-               t.supplier_id, t.defect_type_id,
+               t.supplier_id, t.defect_type_id, t.responsavel_id,
                t.column_id, t.order_index, t.created_at, t.last_moved_at,
                b.name AS marca, b.name AS fabricante, m.name AS modelo,
                s.name AS fornecedor_nome,
-               df.name AS defeito_nome
+               df.name AS defeito_nome,
+               u.nome AS responsavel_nome, u.username AS responsavel_username
         FROM tickets t
         JOIN printer_models m ON m.id = t.printer_model_id
         JOIN printer_brands b ON b.id = m.brand_id
         LEFT JOIN suppliers s ON s.id = t.supplier_id
         LEFT JOIN defect_types df ON df.id = t.defect_type_id
+        LEFT JOIN users u ON u.id = t.responsavel_id
         ORDER BY t.order_index
     """)).mappings().all()
     return [dict(r) for r in rows]
@@ -40,11 +42,19 @@ def create_ticket(p: schemas.TicketIn, db: Session = Depends(get_db)):
     if not model:
         raise HTTPException(400, "Modelo de impressora inválido.")
 
+    # Responsável é obrigatório e precisa ser um usuário válido.
+    if not p.responsavel_id:
+        raise HTTPException(400, "Informe o responsável pelo ticket.")
+    if not db.query(models.User).get(p.responsavel_id):
+        raise HTTPException(400, "Responsável inválido.")
+
     ticket = models.Ticket(
         **p.model_dump(),
         # Snapshot: congela o preço atual do modelo dentro do ticket.
         # A partir daqui o prejuízo deste ticket não muda com reajustes.
         custo_unitario=model.current_price,
+        # Numeração interna legível (ex.: GAR-2026-0001), sequencial por ano.
+        codigo_interno=_proximo_codigo(db),
     )
     # Se já vem com prazo de retorno, marca o instante de referência (a contagem
     # das horas começa daqui).
@@ -62,6 +72,28 @@ def create_ticket(p: schemas.TicketIn, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(ticket)
     return ticket
+
+
+def _proximo_codigo(db: Session) -> str:
+    """Gera o próximo código interno do ano, no formato GAR-ANO-NNNN.
+
+    O contador zera a cada ano. Conta quantos tickets do ano já existem e soma 1.
+    """
+    ano = datetime.utcnow().year
+    prefixo = f"GAR-{ano}-"
+    # Maior sequencial já usado neste ano (busca pelos códigos do ano).
+    ultimo = (db.query(models.Ticket.codigo_interno)
+              .filter(models.Ticket.codigo_interno.like(f"{prefixo}%"))
+              .order_by(models.Ticket.codigo_interno.desc())
+              .first())
+    if ultimo and ultimo[0]:
+        try:
+            seq = int(ultimo[0].split("-")[-1]) + 1
+        except ValueError:
+            seq = 1
+    else:
+        seq = 1
+    return f"{prefixo}{seq:04d}"
 
 
 @router.patch("/{ticket_id}", response_model=schemas.TicketOut)

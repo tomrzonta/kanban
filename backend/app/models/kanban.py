@@ -49,6 +49,7 @@ class BoardColumn(Base):
     sla_hours = Column(Integer, nullable=True)                # limite da etapa (h)
     is_waiting_client = Column(Integer, default=0)            # 0/1 espera externa
     is_done = Column(Integer, default=0)                      # 0/1 coluna terminal
+    is_received = Column(Integer, default=0)                  # 0/1 destino ao receber RMA
 
     tickets = relationship("Ticket", back_populates="column")
 
@@ -79,6 +80,9 @@ class Ticket(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
 
+    # Numeração interna legível (ex.: GAR-2026-0001), para busca e referência.
+    codigo_interno = Column(String(20), unique=True, nullable=True)
+
     # --- Dados do problema ---
     titulo = Column(String(255), nullable=False)
     problema = Column(Text, nullable=False)
@@ -86,6 +90,8 @@ class Ticket(Base):
     # modelo (printer_model -> brand), então não há campo próprio para ele.
     supplier_id = Column(Integer, ForeignKey("suppliers.id"), nullable=True)
     defect_type_id = Column(Integer, ForeignKey("defect_types.id"), nullable=True)
+    # Responsável pelo ticket (usuário cadastrado). Obrigatório nos novos.
+    responsavel_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     numero_nf = Column(String(60), nullable=True)
     notas = Column(Text, nullable=True)             # rich text do atendimento
     origem = Column(SAEnum(OrigemReclamacao), nullable=False)
@@ -119,6 +125,7 @@ class Ticket(Base):
     printer_model = relationship("PrinterModel")
     supplier = relationship("Supplier")
     defect_type = relationship("DefectType")
+    responsavel = relationship("User")
     tags = relationship("StatusTag", secondary=ticket_tags)
     attachments = relationship("Attachment", cascade="all, delete-orphan")
     history = relationship("TicketHistory", back_populates="ticket",

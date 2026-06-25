@@ -48,6 +48,12 @@ export default function TicketCard({ ticket, column, onOpen }) {
       </div>
 
       <div style={{ flex: 1, cursor: "pointer" }} onClick={() => onOpen(ticket)}>
+        {ticket.codigo_interno && (
+          <div style={{ fontSize: 10, color: "var(--accent)", fontWeight: 600,
+                        letterSpacing: 0.3, marginBottom: 2 }}>
+            {ticket.codigo_interno}
+          </div>
+        )}
         <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>
           {ticket.titulo}
         </div>
@@ -57,6 +63,11 @@ export default function TicketCard({ ticket, column, onOpen }) {
         <div style={{ fontSize: 11, color: "var(--text-tertiary)" }}>
           {ticket.defeito_nome || "Sem defeito definido"}
         </div>
+        {(ticket.responsavel_nome || ticket.responsavel_username) && (
+          <div style={{ fontSize: 11, color: "var(--text-tertiary)", marginTop: 2 }}>
+            👤 {ticket.responsavel_nome || ticket.responsavel_username}
+          </div>
+        )}
 
         {badge && (
           <span className="pill" style={{ background: badge.bg, color: badge.fg,

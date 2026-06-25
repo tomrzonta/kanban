@@ -12,6 +12,9 @@ class Settings(BaseSettings):
 
     # CORS — origens do frontend autorizadas a chamar a API.
     FRONTEND_ORIGINS: list[str] = ["http://localhost:5173"]
+    # Em rede local de teste, liberar todas as origens evita ter que listar cada
+    # IP. NÃO use isto exposto à internet. Controlado via .env (CORS_ABERTO=true).
+    CORS_ABERTO: bool = False
 
     # Chave para assinar os tokens JWT. EM PRODUÇÃO, defina via .env com um
     # valor longo e aleatório — nunca use este padrão fora de desenvolvimento.

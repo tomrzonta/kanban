@@ -48,6 +48,14 @@ def me(user: models.User = Depends(usuario_atual)):
 
 
 # --- Gestão de usuários: só admin ---
+@router.get("/users/selectaveis", response_model=list[UserOut])
+def users_selectaveis(_: models.User = Depends(usuario_atual),
+                      db: Session = Depends(get_db)):
+    """Lista usuários ativos para seleção (ex.: responsável pelo ticket).
+    Disponível a qualquer usuário logado, diferente de /users (só admin)."""
+    return db.query(models.User).filter_by(active=1).all()
+
+
 @router.get("/users", response_model=list[UserOut])
 def list_users(_: models.User = Depends(requer_admin), db: Session = Depends(get_db)):
     return db.query(models.User).filter_by(active=1).all()

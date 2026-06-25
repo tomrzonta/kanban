@@ -12,7 +12,7 @@ from app.core.security import usuario_atual, requer_admin
 from app import models  # noqa: F401  (garante o registro dos modelos no metadata)
 from app.routers import (
     catalog, columns, tickets, reports, export, entities, analytics, auth,
-    attachments,
+    attachments, recebimentos,
 )
 
 # As tabelas são criadas/atualizadas por migrações Alembic (rodadas no startup
@@ -21,10 +21,12 @@ from app.routers import (
 
 app = FastAPI(title="Garantias 3D — Kanban de Tickets")
 
+# Em rede local de teste, CORS_ABERTO=true libera qualquer origem (evita listar
+# cada IP). Caso contrário, usa a lista explícita de FRONTEND_ORIGINS.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.FRONTEND_ORIGINS,
-    allow_credentials=True,
+    allow_origins=["*"] if settings.CORS_ABERTO else settings.FRONTEND_ORIGINS,
+    allow_credentials=not settings.CORS_ABERTO,  # "*" + credentials não é permitido juntos
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -38,7 +40,8 @@ app.include_router(auth.router)
 # (listar) precisa estar disponível para atendentes montarem os formulários.
 login_obrigatorio = [Depends(usuario_atual)]
 for r in (tickets.router, reports.router, export.router, analytics.router,
-          catalog.router, columns.router, entities.router, attachments.router):
+          catalog.router, columns.router, entities.router, attachments.router,
+          recebimentos.router):
     app.include_router(r, dependencies=login_obrigatorio)
 
 

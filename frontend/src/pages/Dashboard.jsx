@@ -125,6 +125,9 @@ export default function Dashboard() {
             <Card title="Tickets por tipo de defeito">
               <Pizza data={data.por_defeito} />
             </Card>
+            <Card title="Tickets por responsável">
+              <Barras data={data.por_responsavel} y="qtd" fill="#0d9488" />
+            </Card>
             <Card title="Tickets por origem">
               <Pizza data={data.por_origem} />
             </Card>
@@ -135,6 +138,43 @@ export default function Dashboard() {
               <Barras data={data.gargalos} y="media_horas" fill="#f5a623" />
             </Card>
           </div>
+
+          {/* Seção separada de Recebimentos (RMA) */}
+          {data.recebimentos && (
+            <>
+              <div style={{ borderTop: "1px solid var(--border)", paddingTop: 20,
+                            marginTop: 4 }}>
+                <h2 style={{ fontSize: 17, marginBottom: 4 }}>Recebimentos (RMA)</h2>
+                <p style={{ color: "var(--text-secondary)", fontSize: 13,
+                            marginBottom: 16 }}>
+                  Entradas de impressoras com defeito, no período/filtros acima.
+                </p>
+                <div style={{ display: "grid",
+                              gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
+                              gap: 12, marginBottom: 16 }}>
+                  <Kpi label="Recebimentos registrados"
+                       value={data.recebimentos.total} />
+                  <Kpi label="Unidades recebidas"
+                       value={data.recebimentos.unidades} />
+                </div>
+              </div>
+
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 16 }}>
+                <Card title="Recebimentos por mês">
+                  <Barras data={data.recebimentos.por_periodo} y="qtd" fill="#0891b2" />
+                </Card>
+                <Card title="Recebimentos por condição">
+                  <Pizza data={data.recebimentos.por_condicao} />
+                </Card>
+                <Card title="Recebimentos por fabricante">
+                  <Barras data={data.recebimentos.por_fabricante} y="qtd" fill="#1d9e75" />
+                </Card>
+                <Card title="Recebimentos por modelo">
+                  <Barras data={data.recebimentos.por_modelo} y="qtd" fill="#7c3aed" />
+                </Card>
+              </div>
+            </>
+          )}
         </>
       )}
     </div>

@@ -82,7 +82,15 @@ export default function TicketDetail({ ticket, columns, onClose, onMoved, onEdit
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <div style={{ display: "flex", justifyContent: "space-between",
                       alignItems: "flex-start", marginBottom: 16 }}>
-          <h2 style={{ fontSize: 18 }}>{ticket.titulo}</h2>
+          <div>
+            {ticket.codigo_interno && (
+              <div style={{ fontSize: 12, color: "var(--accent)",
+                            fontWeight: 600, marginBottom: 2 }}>
+                {ticket.codigo_interno}
+              </div>
+            )}
+            <h2 style={{ fontSize: 18 }}>{ticket.titulo}</h2>
+          </div>
           <div style={{ display: "flex", gap: 6 }}>
             {onEdit && <button onClick={() => onEdit(ticket)}>✎ Editar</button>}
             <button onClick={onClose} style={{ padding: "4px 10px" }}>✕</button>
@@ -106,6 +114,8 @@ export default function TicketDetail({ ticket, columns, onClose, onMoved, onEdit
           <Item label="Nº de série" value={ticket.serial_number} />
           <Item label="Fornecedor" value={ticket.fornecedor_nome} />
           <Item label="Tipo de defeito" value={ticket.defeito_nome} />
+          <Item label="Responsável"
+                value={ticket.responsavel_nome || ticket.responsavel_username} />
           <Item label="Quantidade" value={ticket.quantidade} />
           <Item label="Custo unitário"
                 value={`R$ ${Number(ticket.custo_unitario).toFixed(2)}`} />

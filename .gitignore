@@ -1,0 +1,29 @@
+# --- Segredos: NUNCA versionar ---
+.env
+*.env
+!.env.example
+
+# --- Python / Backend ---
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+*.db
+*.sqlite
+*.sqlite3
+
+# --- Node / Frontend ---
+node_modules/
+dist/
+.vite/
+*.log
+
+# --- Uploads locais (anexos ficam em volume Docker, não no repositório) ---
+backend/uploads/
+
+# --- Sistema operacional / Editor ---
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

@@ -18,6 +18,7 @@ export default function TicketForm({ ticket, columns, onCreated, onClose }) {
   const [models, setModels] = useState([]);
   const [suppliers, setSuppliers] = useState([]);
   const [defects, setDefects] = useState([]);
+  const [users, setUsers] = useState([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
 
@@ -26,6 +27,7 @@ export default function TicketForm({ ticket, columns, onCreated, onClose }) {
     problema: ticket?.problema || "",
     supplier_id: ticket?.supplier_id || "",
     defect_type_id: ticket?.defect_type_id || "",
+    responsavel_id: ticket?.responsavel_id || "",
     numero_nf: ticket?.numero_nf || "",
     origem: ticket?.origem || "Atendimento Interno",
     quantidade: ticket?.quantidade || 1,
@@ -43,6 +45,7 @@ export default function TicketForm({ ticket, columns, onCreated, onClose }) {
     api.listBrands().then(setBrands);
     api.listEntities("suppliers").then(setSuppliers);
     api.listEntities("defect-types").then(setDefects);
+    api.listSelectableUsers().then(setUsers);
   }, []);
 
   // Ao trocar a marca, recarrega os modelos. Em edição não limpamos o modelo
@@ -63,12 +66,17 @@ export default function TicketForm({ ticket, columns, onCreated, onClose }) {
       setError("Preencha título, problema e coluna.");
       return;
     }
+    if (!form.responsavel_id) {
+      setError("Selecione o responsável pelo ticket.");
+      return;
+    }
     setSaving(true);
     try {
       // Converte os selects para número ou null.
       const fks = {
         supplier_id: form.supplier_id ? Number(form.supplier_id) : null,
         defect_type_id: form.defect_type_id ? Number(form.defect_type_id) : null,
+        responsavel_id: form.responsavel_id ? Number(form.responsavel_id) : null,
       };
       if (editando) {
         await api.updateTicket(ticket.id, {
@@ -189,6 +197,15 @@ export default function TicketForm({ ticket, columns, onCreated, onClose }) {
               <label>Quantidade</label>
               <input type="number" min="1" value={form.quantidade}
                      onChange={set("quantidade")} />
+            </div>
+            <div>
+              <label>Responsável *</label>
+              <select value={form.responsavel_id} onChange={set("responsavel_id")}>
+                <option value="">Selecione…</option>
+                {users.map((u) => (
+                  <option key={u.id} value={u.id}>{u.nome || u.username}</option>
+                ))}
+              </select>
             </div>
           </div>
 

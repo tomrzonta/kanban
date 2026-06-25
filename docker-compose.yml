@@ -30,6 +30,9 @@ services:
     environment:
       DATABASE_URL: postgresql://postgres:postgres@db:5432/garantias3d
       FRONTEND_ORIGINS: '["http://localhost:5173"]'
+      # Em rede de teste, defina CORS_ABERTO=true no .env da raiz para liberar
+      # o acesso de qualquer máquina da rede.
+      CORS_ABERTO: ${CORS_ABERTO:-false}
     ports:
       - "8000:8000"
     depends_on:
@@ -46,7 +49,9 @@ services:
   frontend:
     build: ./frontend
     environment:
-      VITE_API_URL: http://localhost:8000
+      # Local por padrão; na rede, defina VITE_API_URL=http://SEU_IP:8000 no
+      # arquivo .env da RAIZ do projeto (mesma pasta deste compose).
+      VITE_API_URL: ${VITE_API_URL:-http://localhost:8000}
     ports:
       - "5173:5173"
     depends_on:
