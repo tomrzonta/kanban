@@ -1,6 +1,7 @@
 import { useState } from "react";
 import BrandCatalog from "./BrandCatalog";
 import SimpleEntityList from "../components/SimpleEntityList";
+import DesfechoList from "../components/DesfechoList";
 
 // Catálogo com subseções (abas internas). Cada aba gerencia uma entidade
 // padronizada usada nos tickets e na análise.
@@ -8,6 +9,7 @@ const SECTIONS = [
   { id: "brands", label: "Fabricante" },
   { id: "suppliers", label: "Fornecedores" },
   { id: "defects", label: "Tipos de defeito" },
+  { id: "desfechos", label: "Desfechos" },
 ];
 
 export default function Catalog() {
@@ -39,6 +41,7 @@ export default function Catalog() {
       {section === "defects" && (
         <SimpleEntityList kind="defect-types" label="Tipo de defeito" />
       )}
+      {section === "desfechos" && <DesfechoList />}
     </div>
   );
 }

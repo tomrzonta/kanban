@@ -19,6 +19,32 @@ export default function TicketDetail({ ticket, columns, onClose, onMoved, onEdit
   const [anexos, setAnexos] = useState([]);
   const [enviando, setEnviando] = useState(false);
 
+  // Desfecho do ticket (pode ser marcado a qualquer momento).
+  const [desfechos, setDesfechos] = useState([]);
+  const [desfechoId, setDesfechoId] = useState(ticket.desfecho_id || "");
+  const [prejuizoReal, setPrejuizoReal] = useState(
+    ticket.prejuizo_real != null ? String(ticket.prejuizo_real) : "");
+  const [erroMover, setErroMover] = useState(null);
+
+  useEffect(() => {
+    api.listDesfechos().then(setDesfechos).catch(() => setDesfechos([]));
+  }, []);
+
+  const desfechoSel = desfechos.find((d) => d.id === Number(desfechoId));
+  const ehParcial = desfechoSel?.impacto === "parcial";
+
+  async function salvarDesfecho() {
+    try {
+      await api.updateTicket(ticket.id, {
+        desfecho_id: desfechoId ? Number(desfechoId) : null,
+        prejuizo_real: ehParcial && prejuizoReal ? Number(prejuizoReal) : null,
+      });
+      onMoved();
+    } catch (e) {
+      alert(String(e.message || e).replace(/^API \d+:\s*/, ""));
+    }
+  }
+
   useEffect(() => {
     api.listAttachments(ticket.id).then(setAnexos).catch(() => setAnexos([]));
   }, [ticket.id]);
@@ -70,11 +96,17 @@ export default function TicketDetail({ ticket, columns, onClose, onMoved, onEdit
 
   async function mover(toColumnId) {
     if (Number(toColumnId) === ticket.column_id) return;
-    await api.moveTicket(ticket.id, {
-      to_column_id: Number(toColumnId),
-      new_order_index: 0,
-    });
-    onMoved();
+    setErroMover(null);
+    try {
+      await api.moveTicket(ticket.id, {
+        to_column_id: Number(toColumnId),
+        new_order_index: 0,
+      });
+      onMoved();
+    } catch (e) {
+      // O backend exige desfecho ao concluir; mostra o aviso de forma amigável.
+      setErroMover(String(e.message || e).replace(/^API \d+:\s*/, ""));
+    }
   }
 
   return (
@@ -98,13 +130,48 @@ export default function TicketDetail({ ticket, columns, onClose, onMoved, onEdit
         </div>
 
         {/* Seletor de etapa — move o ticket sem precisar arrastar. */}
-        <div style={{ marginBottom: 16 }}>
+        <div style={{ marginBottom: 12 }}>
           <label>Etapa atual</label>
           <select value={ticket.column_id} onChange={(e) => mover(e.target.value)}>
             {columns.map((c) => (
               <option key={c.id} value={c.id}>{c.name}</option>
             ))}
           </select>
+          {erroMover && (
+            <div style={{ color: "var(--red)", fontSize: 12, marginTop: 6 }}>
+              {erroMover}
+            </div>
+          )}
+        </div>
+
+        {/* Desfecho — define como o prejuízo conta nas análises. Obrigatório
+            ao concluir; pode ser ajustado a qualquer momento. */}
+        <div style={{ marginBottom: 16, padding: 12, background: "var(--bg)",
+                      borderRadius: "var(--radius)" }}>
+          <label>Desfecho</label>
+          <div style={{ display: "flex", gap: 8, alignItems: "center",
+                        flexWrap: "wrap" }}>
+            <select value={desfechoId} style={{ flex: 1, minWidth: 180 }}
+                    onChange={(e) => setDesfechoId(e.target.value)}>
+              <option value="">Não definido</option>
+              {desfechos.map((d) => (
+                <option key={d.id} value={d.id}>{d.name}</option>
+              ))}
+            </select>
+            {ehParcial && (
+              <input type="number" step="0.01" min="0" placeholder="Valor perdido R$"
+                     value={prejuizoReal} style={{ width: 150 }}
+                     onChange={(e) => setPrejuizoReal(e.target.value)} />
+            )}
+            <button className="primary" onClick={salvarDesfecho}>Salvar desfecho</button>
+          </div>
+          {desfechoSel && (
+            <div style={{ fontSize: 12, color: "var(--text-tertiary)", marginTop: 6 }}>
+              {desfechoSel.impacto === "sem_prejuizo" && "Este desfecho não conta prejuízo nas análises."}
+              {desfechoSel.impacto === "total" && "Conta o valor cheio (custo × quantidade) como prejuízo."}
+              {desfechoSel.impacto === "parcial" && "Conta como prejuízo o valor informado ao lado."}
+            </div>
+          )}
         </div>
 
         {/* Todos os campos, sempre visíveis. Vazio = "—". */}
@@ -116,6 +183,7 @@ export default function TicketDetail({ ticket, columns, onClose, onMoved, onEdit
           <Item label="Tipo de defeito" value={ticket.defeito_nome} />
           <Item label="Responsável"
                 value={ticket.responsavel_nome || ticket.responsavel_username} />
+          <Item label="Desfecho" value={ticket.desfecho_nome} />
           <Item label="Quantidade" value={ticket.quantidade} />
           <Item label="Custo unitário"
                 value={`R$ ${Number(ticket.custo_unitario).toFixed(2)}`} />

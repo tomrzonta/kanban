@@ -128,6 +128,9 @@ export default function Dashboard() {
             <Card title="Tickets por responsável">
               <Barras data={data.por_responsavel} y="qtd" fill="#0d9488" />
             </Card>
+            <Card title="Tickets por desfecho">
+              <Pizza data={data.por_desfecho} />
+            </Card>
             <Card title="Tickets por origem">
               <Pizza data={data.por_origem} />
             </Card>

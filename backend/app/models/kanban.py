@@ -92,6 +92,10 @@ class Ticket(Base):
     defect_type_id = Column(Integer, ForeignKey("defect_types.id"), nullable=True)
     # Responsável pelo ticket (usuário cadastrado). Obrigatório nos novos.
     responsavel_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    # Desfecho do ticket (obrigatório ao concluir) e valor real perdido quando
+    # o desfecho é de prejuízo parcial. Isso corrige o cálculo de prejuízo.
+    desfecho_id = Column(Integer, ForeignKey("desfechos.id"), nullable=True)
+    prejuizo_real = Column(Numeric(10, 2), nullable=True)
     numero_nf = Column(String(60), nullable=True)
     notas = Column(Text, nullable=True)             # rich text do atendimento
     origem = Column(SAEnum(OrigemReclamacao), nullable=False)
@@ -126,6 +130,7 @@ class Ticket(Base):
     supplier = relationship("Supplier")
     defect_type = relationship("DefectType")
     responsavel = relationship("User")
+    desfecho = relationship("Desfecho")
     tags = relationship("StatusTag", secondary=ticket_tags)
     attachments = relationship("Attachment", cascade="all, delete-orphan")
     history = relationship("TicketHistory", back_populates="ticket",

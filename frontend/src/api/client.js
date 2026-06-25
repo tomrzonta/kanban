@@ -151,6 +151,15 @@ export const api = {
   // Análise por dimensão (fornecedor, distribuidora, defeito).
   porDimensao: () => request("/api/reports/por-dimensao"),
 
+  // Desfechos (categorias com impacto no prejuízo)
+  listDesfechos: () => request("/api/catalog/desfechos"),
+  createDesfecho: (data) =>
+    request("/api/catalog/desfechos", { method: "POST", body: JSON.stringify(data) }),
+  updateDesfecho: (id, data) =>
+    request(`/api/catalog/desfechos/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+  deleteDesfecho: (id) =>
+    request(`/api/catalog/desfechos/${id}`, { method: "DELETE" }),
+
   // Tickets concluídos (com filtros) para a aba de consulta.
   concluidos: (filtros) => {
     const qs = new URLSearchParams(

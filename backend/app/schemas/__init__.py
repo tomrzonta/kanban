@@ -95,6 +95,8 @@ class TicketUpdate(BaseModel):
     supplier_id: int | None = None
     defect_type_id: int | None = None
     responsavel_id: int | None = None
+    desfecho_id: int | None = None
+    prejuizo_real: float | None = None
     numero_nf: str | None = None
     notas: str | None = None
     codigo_rastreio: str | None = None

@@ -52,3 +52,22 @@ class DefectType(Base):
     id = Column(Integer, primary_key=True)
     name = Column(String(120), nullable=False, unique=True)
     active = Column(Integer, default=1)
+
+
+# Tipos de impacto de um desfecho no cálculo de prejuízo:
+IMPACTO_SEM_PREJUIZO = "sem_prejuizo"   # conta R$ 0
+IMPACTO_TOTAL = "total"                  # conta custo_unitario * quantidade
+IMPACTO_PARCIAL = "parcial"              # conta um valor informado no ticket
+IMPACTOS = [IMPACTO_SEM_PREJUIZO, IMPACTO_TOTAL, IMPACTO_PARCIAL]
+
+
+class Desfecho(Base):
+    """Categoria de desfecho do ticket (ex: Reparado, Trocado, Coberto pelo
+    fornecedor, Prejuízo). O 'impacto' define como o prejuízo é contado nas
+    análises — é isso que evita o viés de tratar todo ticket como perda.
+    """
+    __tablename__ = "desfechos"
+    id = Column(Integer, primary_key=True)
+    name = Column(String(120), nullable=False, unique=True)
+    impacto = Column(String(20), nullable=False, default=IMPACTO_SEM_PREJUIZO)
+    active = Column(Integer, default=1)

@@ -18,6 +18,22 @@ from app.core.database import get_db
 router = APIRouter(prefix="/api/analytics", tags=["analytics"])
 
 
+# Expressão SQL do "prejuízo efetivo" de um ticket, respeitando o desfecho:
+#  - desfecho sem prejuízo  -> 0
+#  - desfecho parcial        -> prejuizo_real informado
+#  - desfecho total OU ainda sem desfecho -> custo_unitario * quantidade (cheio)
+# Reutilizada em todas as análises para eliminar o viés de tratar tudo como perda.
+# Requer que a query tenha JOIN/LEFT JOIN da tabela tickets como 't' e, quando
+# usar o desfecho, um LEFT JOIN de desfechos como 'dsf'.
+PREJUIZO_EFETIVO = """
+    CASE
+        WHEN dsf.impacto = 'sem_prejuizo' THEN 0
+        WHEN dsf.impacto = 'parcial' THEN COALESCE(t.prejuizo_real, 0)
+        ELSE t.custo_unitario * t.quantidade
+    END
+"""
+
+
 def _where(brand_id, supplier_id, defect_type_id, column_id, date_from, date_to):
     """Monta a cláusula WHERE e os parâmetros a partir dos filtros não-nulos.
 
@@ -95,19 +111,20 @@ def dashboard(f: dict = Depends(filtros), db: Session = Depends(get_db)):
     """Devolve todas as métricas do dashboard para o recorte filtrado."""
     where, params = _where(**f)
 
-    # Base reaproveitada: tickets + join de marca/modelo, com o filtro aplicado.
+    # Base reaproveitada: tickets + join de marca/modelo + desfecho, com filtro.
     base = f"""
         FROM tickets t
         JOIN printer_models m ON m.id = t.printer_model_id
         JOIN printer_brands b ON b.id = m.brand_id
+        LEFT JOIN desfechos dsf ON dsf.id = t.desfecho_id
         {where}
     """
 
-    # --- KPIs gerais ---
+    # --- KPIs gerais (prejuízo efetivo respeita o desfecho de cada ticket) ---
     kpis = db.execute(text(f"""
         SELECT COUNT(*) AS total_tickets,
-               COALESCE(SUM(t.custo_unitario * t.quantidade), 0) AS prejuizo_total,
-               COALESCE(AVG(t.custo_unitario * t.quantidade), 0) AS prejuizo_medio
+               COALESCE(SUM({PREJUIZO_EFETIVO}), 0) AS prejuizo_total,
+               COALESCE(AVG({PREJUIZO_EFETIVO}), 0) AS prejuizo_medio
         {base}
     """), params).mappings().first()
 
@@ -130,10 +147,11 @@ def dashboard(f: dict = Depends(filtros), db: Session = Depends(get_db)):
         return [dict(r) for r in db.execute(text(f"""
             SELECT {group_col} AS nome,
                    COUNT(t.id) AS qtd,
-                   COALESCE(SUM(t.custo_unitario * t.quantidade), 0) AS prejuizo
+                   COALESCE(SUM({PREJUIZO_EFETIVO}), 0) AS prejuizo
             FROM tickets t
             JOIN printer_models m ON m.id = t.printer_model_id
             JOIN printer_brands b ON b.id = m.brand_id
+            LEFT JOIN desfechos dsf ON dsf.id = t.desfecho_id
             {join_extra}
             {where}
             GROUP BY {group_col}
@@ -149,6 +167,8 @@ def dashboard(f: dict = Depends(filtros), db: Session = Depends(get_db)):
     por_responsavel = agrupado(
         "COALESCE(u.nome, u.username)",
         "LEFT JOIN users u ON u.id = t.responsavel_id")
+    por_desfecho = agrupado("dsf2.name",
+        "LEFT JOIN desfechos dsf2 ON dsf2.id = t.desfecho_id")
 
     # --- Distribuição por coluna atual (status do funil) ---
     por_coluna = [dict(r) for r in db.execute(text(f"""
@@ -236,6 +256,7 @@ def dashboard(f: dict = Depends(filtros), db: Session = Depends(get_db)):
         "por_defeito": por_defeito,
         "por_origem": por_origem,
         "por_responsavel": por_responsavel,
+        "por_desfecho": por_desfecho,
         "por_coluna": por_coluna,
         "gargalos": gargalos,
         "recebimentos": {
@@ -262,11 +283,13 @@ def concluidos(f: dict = Depends(filtros), db: Session = Depends(get_db)):
         SELECT t.id, t.titulo, b.name AS fabricante, m.name AS modelo,
                s.name AS fornecedor_nome, df.name AS defeito_nome,
                t.origem, t.numero_nf, t.serial_number, t.quantidade,
-               t.custo_unitario, (t.custo_unitario * t.quantidade) AS prejuizo,
+               t.custo_unitario, {PREJUIZO_EFETIVO} AS prejuizo,
                t.column_id, t.created_at, t.last_moved_at,
                t.problema, t.notas, t.codigo_rastreio,
                t.requer_contato_cliente, t.retorno_horas, t.retorno_definido_em,
                t.printer_model_id, t.supplier_id, t.defect_type_id, t.order_index,
+               t.desfecho_id, t.prejuizo_real, dsf.name AS desfecho_nome,
+               dsf.impacto AS desfecho_impacto,
                b.name AS marca
         FROM tickets t
         JOIN printer_models m ON m.id = t.printer_model_id
@@ -274,6 +297,7 @@ def concluidos(f: dict = Depends(filtros), db: Session = Depends(get_db)):
         JOIN columns c ON c.id = t.column_id
         LEFT JOIN suppliers s ON s.id = t.supplier_id
         LEFT JOIN defect_types df ON df.id = t.defect_type_id
+        LEFT JOIN desfechos dsf ON dsf.id = t.desfecho_id
         {where} {extra}
         ORDER BY t.last_moved_at DESC
     """), params).mappings().all()
@@ -285,17 +309,19 @@ def export_csv(f: dict = Depends(filtros), db: Session = Depends(get_db)):
     """Exporta a tabela de tickets do recorte filtrado em CSV (abre no Excel)."""
     where, params = _where(**f)
     rows = db.execute(text(f"""
-        SELECT t.id, t.titulo, b.name AS fabricante, m.name AS modelo,
+        SELECT t.id, t.codigo_interno, t.titulo, b.name AS fabricante, m.name AS modelo,
                s.name AS fornecedor, df.name AS defeito,
+               dsf.name AS desfecho,
                c.name AS etapa, t.origem, t.numero_nf, t.serial_number,
                t.quantidade, t.custo_unitario,
-               (t.custo_unitario * t.quantidade) AS prejuizo,
+               {PREJUIZO_EFETIVO} AS prejuizo,
                t.created_at
         FROM tickets t
         JOIN printer_models m ON m.id = t.printer_model_id
         JOIN printer_brands b ON b.id = m.brand_id
         LEFT JOIN suppliers s ON s.id = t.supplier_id
         LEFT JOIN defect_types df ON df.id = t.defect_type_id
+        LEFT JOIN desfechos dsf ON dsf.id = t.desfecho_id
         JOIN columns c ON c.id = t.column_id
         {where}
         ORDER BY t.created_at DESC
@@ -303,13 +329,14 @@ def export_csv(f: dict = Depends(filtros), db: Session = Depends(get_db)):
 
     buf = io.StringIO()
     writer = csv.writer(buf, delimiter=";")  # ; abre direto no Excel pt-BR
-    writer.writerow(["ID", "Título", "Fabricante", "Modelo", "Fornecedor",
-                     "Defeito", "Etapa", "Origem", "NF", "SN", "Qtd",
-                     "Custo Unit.", "Prejuízo", "Criado em"])
+    writer.writerow(["Código", "Título", "Fabricante", "Modelo", "Fornecedor",
+                     "Defeito", "Desfecho", "Etapa", "Origem", "NF", "SN", "Qtd",
+                     "Custo Unit.", "Prejuízo efetivo", "Criado em"])
     for r in rows:
-        writer.writerow([str(r["id"]), r["titulo"], r["fabricante"], r["modelo"],
-                         r["fornecedor"] or "", r["defeito"] or "", r["etapa"],
-                         r["origem"], r["numero_nf"] or "", r["serial_number"] or "",
+        writer.writerow([r["codigo_interno"] or "", r["titulo"], r["fabricante"],
+                         r["modelo"], r["fornecedor"] or "", r["defeito"] or "",
+                         r["desfecho"] or "", r["etapa"], r["origem"],
+                         r["numero_nf"] or "", r["serial_number"] or "",
                          r["quantidade"], r["custo_unitario"], r["prejuizo"],
                          r["created_at"]])
     # BOM (\ufeff) garante acentuação correta ao abrir no Excel.

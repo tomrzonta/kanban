@@ -20,16 +20,19 @@ def list_tickets(db: Session = Depends(get_db)):
                t.requer_contato_cliente, t.retorno_horas, t.retorno_definido_em,
                t.printer_model_id, t.quantidade, t.custo_unitario,
                t.supplier_id, t.defect_type_id, t.responsavel_id,
+               t.desfecho_id, t.prejuizo_real,
                t.column_id, t.order_index, t.created_at, t.last_moved_at,
                b.name AS marca, b.name AS fabricante, m.name AS modelo,
                s.name AS fornecedor_nome,
                df.name AS defeito_nome,
+               dsf.name AS desfecho_nome, dsf.impacto AS desfecho_impacto,
                u.nome AS responsavel_nome, u.username AS responsavel_username
         FROM tickets t
         JOIN printer_models m ON m.id = t.printer_model_id
         JOIN printer_brands b ON b.id = m.brand_id
         LEFT JOIN suppliers s ON s.id = t.supplier_id
         LEFT JOIN defect_types df ON df.id = t.defect_type_id
+        LEFT JOIN desfechos dsf ON dsf.id = t.desfecho_id
         LEFT JOIN users u ON u.id = t.responsavel_id
         ORDER BY t.order_index
     """)).mappings().all()
@@ -128,6 +131,15 @@ def move_ticket(ticket_id: str, p: schemas.MoveIn,
         raise HTTPException(404, "Ticket não encontrado.")
 
     if t.column_id != p.to_column_id:
+        # Ao mover para uma coluna de conclusão, o desfecho é obrigatório —
+        # garante que nenhum ticket concluído fique sem classificação (e que as
+        # análises de prejuízo não fiquem enviesadas).
+        destino = db.query(models.BoardColumn).get(p.to_column_id)
+        if destino and destino.is_done and not t.desfecho_id:
+            raise HTTPException(
+                400,
+                "Para concluir este ticket, informe primeiro o desfecho "
+                "(abra o ticket e selecione o desfecho).")
         db.add(models.TicketHistory(
             ticket_id=t.id,
             from_column_id=t.column_id,
