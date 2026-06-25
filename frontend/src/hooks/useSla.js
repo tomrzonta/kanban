@@ -94,3 +94,27 @@ export function formatVencimento(vencimento) {
     day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit",
   });
 }
+
+// --- Prazo de GARANTIA (30 dias desde a abertura) ---
+// Conta dias corridos desde created_at. Faixas:
+//   < 25 dias  -> normal (sem alerta)
+//   25 a 29    -> atenção (amarelo, perto do prazo)
+//   >= 30      -> crítico (vermelho, prazo de garantia estourado)
+export const GARANTIA_DIAS = 30;
+export const GARANTIA_ATENCAO = 25;
+
+export const GARANTIA_COLORS = {
+  normal: null,            // sem destaque
+  atencao: "#f5a623",      // amarelo
+  critico: "#e03e3e",      // vermelho
+};
+
+export function garantiaInfo(ticket) {
+  if (!ticket?.created_at) return { dias: null, faixa: "normal" };
+  const criado = new Date(ticket.created_at);
+  const dias = Math.floor((Date.now() - criado) / 86400000); // ms por dia
+  let faixa = "normal";
+  if (dias >= GARANTIA_DIAS) faixa = "critico";
+  else if (dias >= GARANTIA_ATENCAO) faixa = "atencao";
+  return { dias, faixa, restante: GARANTIA_DIAS - dias };
+}

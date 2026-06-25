@@ -154,6 +154,24 @@ def move_ticket(ticket_id: str, p: schemas.MoveIn,
     return t
 
 
+@router.put("/{ticket_id}/registrar-contato", response_model=schemas.TicketOut)
+def registrar_contato(ticket_id: str, db: Session = Depends(get_db)):
+    """Registra um contato com o cliente e REINICIA o cronômetro do SLA da
+    coluna atual (sem mover o ticket). O SLA conta a partir de last_moved_at,
+    então atualizá-lo para agora faz a contagem recomeçar do zero.
+    """
+    t = db.query(models.Ticket).get(ticket_id)
+    if not t:
+        raise HTTPException(404, "Ticket não encontrado.")
+    t.last_moved_at = datetime.utcnow()  # zera o cronômetro do SLA da coluna
+    # Marca também o instante de referência do prazo de retorno, se houver.
+    if t.retorno_horas:
+        t.retorno_definido_em = datetime.utcnow()
+    db.commit()
+    db.refresh(t)
+    return t
+
+
 @router.put("/reorder")
 def reorder_tickets(p: schemas.ReorderIn, db: Session = Depends(get_db)):
     """Regrava a ordem (order_index) dos tickets de uma coluna, em lote.

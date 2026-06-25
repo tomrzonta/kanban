@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { api } from "../api/client";
-import { contatoInfo, formatVencimento } from "../hooks/useSla";
+import { contatoInfo, formatVencimento, garantiaInfo } from "../hooks/useSla";
 
 // Modal de detalhes do ticket. Mostra TODOS os campos, sempre — os vazios
 // aparecem como "—" para deixar claro que existem e estão em branco.
@@ -32,6 +32,15 @@ export default function TicketDetail({ ticket, columns, onClose, onMoved, onEdit
 
   const desfechoSel = desfechos.find((d) => d.id === Number(desfechoId));
   const ehParcial = desfechoSel?.impacto === "parcial";
+
+  async function registrarContatoCliente() {
+    try {
+      await api.registrarContato(ticket.id);
+      onMoved(); // recarrega para refletir o cronômetro reiniciado
+    } catch (e) {
+      alert(String(e.message || e).replace(/^API \d+:\s*/, ""));
+    }
+  }
 
   async function salvarDesfecho() {
     try {
@@ -83,6 +92,7 @@ export default function TicketDetail({ ticket, columns, onClose, onMoved, onEdit
 
   // Contato com cliente (flag manual OU coluna aguardando cliente).
   const c = contatoInfo(ticket, colunaAtual);
+  const g = colunaAtual?.is_done ? { faixa: "normal" } : garantiaInfo(ticket);
   const venc = formatVencimento(c.vencimento);
   const prazoRetorno = !c.precisaContato
     ? "Não"
@@ -128,6 +138,29 @@ export default function TicketDetail({ ticket, columns, onClose, onMoved, onEdit
             <button onClick={onClose} style={{ padding: "4px 10px" }}>✕</button>
           </div>
         </div>
+
+        {/* Alerta de garantia (30 dias desde a abertura). */}
+        {g.dias != null && g.faixa !== "normal" && (
+          <div style={{ marginBottom: 12, padding: "8px 12px", borderRadius: 6,
+                        fontSize: 13, fontWeight: 600,
+                        background: g.faixa === "critico" ? "#fdecec" : "#fdf2d8",
+                        color: g.faixa === "critico" ? "#a32d2d" : "#946800",
+                        border: g.faixa === "critico" ? "1px solid #e03e3e" : "none" }}>
+            {g.faixa === "critico"
+              ? `⚠ CRÍTICO: ${g.dias} dias desde a abertura — prazo de garantia (30 dias) vencido. Reembolsar ou enviar nova impressora.`
+              : `Atenção: ${g.dias} dias desde a abertura — faltam ${g.restante} dias para o limite de garantia.`}
+          </div>
+        )}
+
+        {/* Botão de registrar contato — reinicia o cronômetro do SLA da coluna. */}
+        {c.precisaContato && !colunaAtual?.is_done && (
+          <div style={{ marginBottom: 12 }}>
+            <button onClick={registrarContatoCliente}
+                    style={{ background: "#185fa5", color: "#fff" }}>
+              📞 Registrar contato com o cliente (reinicia o prazo)
+            </button>
+          </div>
+        )}
 
         {/* Seletor de etapa — move o ticket sem precisar arrastar. */}
         <div style={{ marginBottom: 12 }}>
@@ -200,6 +233,11 @@ export default function TicketDetail({ ticket, columns, onClose, onMoved, onEdit
           <Item label="Prazo de contato" value={`${prazoRetorno}${fonteTxt}`}
                 danger={c.atrasado} />
           <Item label="Criado em" value={criado} />
+          {g.dias != null && (
+            <Item label="Dias desde abertura"
+                  value={`${g.dias} ${g.dias === 1 ? "dia" : "dias"}`}
+                  danger={g.faixa === "critico"} />
+          )}
         </dl>
 
         <div style={{ marginTop: 16 }}>

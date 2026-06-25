@@ -34,7 +34,8 @@ PREJUIZO_EFETIVO = """
 """
 
 
-def _where(brand_id, supplier_id, defect_type_id, column_id, date_from, date_to):
+def _where(brand_id, supplier_id, defect_type_id, column_id, responsavel_id,
+           date_from, date_to):
     """Monta a cláusula WHERE e os parâmetros a partir dos filtros não-nulos.
 
     Filtros vazios são ignorados (não restringem). Datas filtram por created_at.
@@ -53,6 +54,9 @@ def _where(brand_id, supplier_id, defect_type_id, column_id, date_from, date_to)
     if column_id:
         conds.append("t.column_id = :column_id")
         params["column_id"] = column_id
+    if responsavel_id:
+        conds.append("t.responsavel_id = :responsavel_id")
+        params["responsavel_id"] = responsavel_id
     if date_from:
         conds.append("t.created_at >= :date_from")
         params["date_from"] = date_from
@@ -64,7 +68,7 @@ def _where(brand_id, supplier_id, defect_type_id, column_id, date_from, date_to)
 
 
 def _where_recebimentos(brand_id, supplier_id, defect_type_id, column_id,
-                        date_from, date_to):
+                        responsavel_id, date_from, date_to):
     """WHERE para recebimentos. Os filtros de fabricante/fornecedor/defeito miram
     o ticket vinculado (r -> t); o filtro de DATA mira a data do recebimento.
     """
@@ -82,6 +86,9 @@ def _where_recebimentos(brand_id, supplier_id, defect_type_id, column_id,
     if column_id:
         conds.append("t.column_id = :column_id")
         params["column_id"] = column_id
+    if responsavel_id:
+        conds.append("t.responsavel_id = :responsavel_id")
+        params["responsavel_id"] = responsavel_id
     if date_from:
         conds.append("r.data_recebimento >= :date_from")
         params["date_from"] = date_from
@@ -98,11 +105,13 @@ def filtros(
     supplier_id: int | None = Query(None),
     defect_type_id: int | None = Query(None),
     column_id: int | None = Query(None),
+    responsavel_id: int | None = Query(None),
     date_from: date | None = Query(None),
     date_to: date | None = Query(None),
 ):
     return dict(brand_id=brand_id, supplier_id=supplier_id,
                 defect_type_id=defect_type_id, column_id=column_id,
+                responsavel_id=responsavel_id,
                 date_from=date_from, date_to=date_to)
 
 
@@ -344,4 +353,176 @@ def export_csv(f: dict = Depends(filtros), db: Session = Depends(get_db)):
     return StreamingResponse(
         iter([data]), media_type="text/csv",
         headers={"Content-Disposition": 'attachment; filename="tickets_filtrados.csv"'},
+    )
+
+
+@router.get("/ticket-timeline")
+def ticket_timeline(codigo: str | None = None, ticket_id: str | None = None,
+                    db: Session = Depends(get_db)):
+    """Linha do tempo de UM ticket: cada passagem por coluna (entrou/saiu/duração)
+    e o total acumulado por coluna. Aceita o código interno (GAR-...) ou o id.
+    """
+    if codigo:
+        t = db.execute(text("""
+            SELECT t.id, t.codigo_interno, t.titulo, t.created_at,
+                   b.name AS fabricante, m.name AS modelo
+            FROM tickets t
+            JOIN printer_models m ON m.id = t.printer_model_id
+            JOIN printer_brands b ON b.id = m.brand_id
+            WHERE t.codigo_interno = :codigo
+        """), {"codigo": codigo.strip()}).mappings().first()
+    elif ticket_id:
+        t = db.execute(text("""
+            SELECT t.id, t.codigo_interno, t.titulo, t.created_at,
+                   b.name AS fabricante, m.name AS modelo
+            FROM tickets t
+            JOIN printer_models m ON m.id = t.printer_model_id
+            JOIN printer_brands b ON b.id = m.brand_id
+            WHERE t.id = :tid
+        """), {"tid": ticket_id}).mappings().first()
+    else:
+        raise HTTPException(400, "Informe o código ou o id do ticket.")
+
+    if not t:
+        raise HTTPException(404, "Ticket não encontrado.")
+
+    # Cada passagem: coluna de destino de cada movimentação, com o tempo até a
+    # movimentação seguinte (LEAD). A última passagem vai até agora (NOW()).
+    passagens = db.execute(text("""
+        SELECT c.name AS coluna,
+               h.moved_at AS entrada,
+               LEAD(h.moved_at) OVER (ORDER BY h.moved_at) AS saida,
+               EXTRACT(EPOCH FROM (
+                   COALESCE(LEAD(h.moved_at) OVER (ORDER BY h.moved_at), NOW())
+                   - h.moved_at)) / 3600 AS horas
+        FROM ticket_history h
+        JOIN columns c ON c.id = h.to_column_id
+        WHERE h.ticket_id = :tid
+        ORDER BY h.moved_at
+    """), {"tid": str(t["id"])}).mappings().all()
+
+    totais = {}
+    for p in passagens:
+        totais[p["coluna"]] = totais.get(p["coluna"], 0) + float(p["horas"] or 0)
+
+    return {
+        "ticket": {
+            "codigo_interno": t["codigo_interno"], "titulo": t["titulo"],
+            "fabricante": t["fabricante"], "modelo": t["modelo"],
+            "created_at": str(t["created_at"]),
+        },
+        "passagens": [
+            {"coluna": p["coluna"], "entrada": str(p["entrada"]),
+             "saida": str(p["saida"]) if p["saida"] else None,
+             "horas": round(float(p["horas"] or 0), 1)}
+            for p in passagens
+        ],
+        "total_por_coluna": [
+            {"coluna": k, "horas": round(v, 1)} for k, v in totais.items()
+        ],
+    }
+
+
+@router.get("/export-completo.csv")
+def export_completo(db: Session = Depends(get_db)):
+    """CSV largo (uma linha por ticket) com TODOS os dados de acompanhamento,
+    pronto para o Power BI. Sempre traz a base completa (ignora filtros).
+    """
+    rows = db.execute(text(f"""
+        SELECT
+            t.codigo_interno, t.titulo, t.problema,
+            b.name AS fabricante, m.name AS modelo, m.sku,
+            s.name AS fornecedor, df.name AS defeito,
+            dsf.name AS desfecho, dsf.impacto AS desfecho_impacto,
+            COALESCE(ru.nome, ru.username) AS responsavel,
+            t.origem, t.numero_nf, t.serial_number, t.codigo_rastreio,
+            t.quantidade, t.custo_unitario,
+            {PREJUIZO_EFETIVO} AS prejuizo_efetivo,
+            t.custo_unitario * t.quantidade AS prejuizo_potencial,
+            t.prejuizo_real,
+            c.name AS etapa_atual, c.is_done AS concluido,
+            t.requer_contato_cliente, t.retorno_horas,
+            t.created_at,
+            EXTRACT(DAY FROM (NOW() - t.created_at))::int AS dias_desde_abertura,
+            t.last_moved_at,
+            EXTRACT(EPOCH FROM (NOW() - t.created_at)) / 3600 AS horas_total_aberto,
+            -- 1ª chegada em coluna final = momento de conclusão (se houver).
+            (SELECT MIN(h.moved_at) FROM ticket_history h
+             JOIN columns cc ON cc.id = h.to_column_id
+             WHERE h.ticket_id = t.id AND cc.is_done = 1) AS concluido_em,
+            -- nº de recebimentos (RMA) vinculados.
+            (SELECT COUNT(*) FROM recebimentos r WHERE r.ticket_id = t.id) AS qtd_recebimentos
+        FROM tickets t
+        JOIN printer_models m ON m.id = t.printer_model_id
+        JOIN printer_brands b ON b.id = m.brand_id
+        JOIN columns c ON c.id = t.column_id
+        LEFT JOIN suppliers s ON s.id = t.supplier_id
+        LEFT JOIN defect_types df ON df.id = t.defect_type_id
+        LEFT JOIN desfechos dsf ON dsf.id = t.desfecho_id
+        LEFT JOIN users ru ON ru.id = t.responsavel_id
+        ORDER BY t.codigo_interno
+    """)).mappings().all()
+
+    # Tempo total por coluna de cada ticket (vira colunas dinâmicas no CSV).
+    tempos = db.execute(text("""
+        WITH spans AS (
+            SELECT h.ticket_id, h.to_column_id,
+                   EXTRACT(EPOCH FROM (
+                       COALESCE(LEAD(h.moved_at) OVER (
+                           PARTITION BY h.ticket_id ORDER BY h.moved_at), NOW())
+                       - h.moved_at)) / 3600 AS horas
+            FROM ticket_history h
+        )
+        SELECT s.ticket_id, c.name AS coluna, SUM(s.horas) AS horas
+        FROM spans s JOIN columns c ON c.id = s.to_column_id
+        GROUP BY s.ticket_id, c.name
+    """)).mappings().all()
+
+    # Organiza o tempo por coluna num dicionário por ticket.
+    # (cruzamos pelo código do ticket via uma segunda consulta de id->codigo)
+    id_para_codigo = {str(r["id"]): r["codigo_interno"] for r in db.execute(text(
+        "SELECT id, codigo_interno FROM tickets")).mappings().all()}
+    colunas_nomes = sorted({tp["coluna"] for tp in tempos})
+    tempo_por_ticket = {}
+    for tp in tempos:
+        cod = id_para_codigo.get(str(tp["ticket_id"]))
+        tempo_por_ticket.setdefault(cod, {})[tp["coluna"]] = round(float(tp["horas"] or 0), 1)
+
+    buf = io.StringIO()
+    writer = csv.writer(buf, delimiter=";")
+    cabecalho = [
+        "Código", "Título", "Problema", "Fabricante", "Modelo", "SKU",
+        "Fornecedor", "Defeito", "Desfecho", "Impacto desfecho", "Responsável",
+        "Origem", "NF", "Nº série", "Rastreio", "Quantidade", "Custo unitário",
+        "Prejuízo efetivo", "Prejuízo potencial", "Prejuízo real informado",
+        "Etapa atual", "Concluído", "Requer contato", "Prazo retorno (h)",
+        "Criado em", "Dias desde abertura", "Última movimentação",
+        "Horas total aberto", "Concluído em", "Qtd recebimentos",
+    ] + [f"Horas em: {c}" for c in colunas_nomes]
+    writer.writerow(cabecalho)
+
+    for r in rows:
+        tempos_t = tempo_por_ticket.get(r["codigo_interno"], {})
+        linha = [
+            r["codigo_interno"] or "", r["titulo"], (r["problema"] or "").replace("\n", " "),
+            r["fabricante"], r["modelo"], r["sku"] or "",
+            r["fornecedor"] or "", r["defeito"] or "", r["desfecho"] or "",
+            r["desfecho_impacto"] or "", r["responsavel"] or "",
+            r["origem"], r["numero_nf"] or "", r["serial_number"] or "",
+            r["codigo_rastreio"] or "", r["quantidade"], r["custo_unitario"],
+            r["prejuizo_efetivo"], r["prejuizo_potencial"],
+            r["prejuizo_real"] if r["prejuizo_real"] is not None else "",
+            r["etapa_atual"], "Sim" if r["concluido"] else "Não",
+            "Sim" if r["requer_contato_cliente"] else "Não",
+            r["retorno_horas"] if r["retorno_horas"] is not None else "",
+            r["created_at"], r["dias_desde_abertura"], r["last_moved_at"],
+            round(float(r["horas_total_aberto"] or 0), 1),
+            r["concluido_em"] or "", r["qtd_recebimentos"],
+        ] + [tempos_t.get(c, 0) for c in colunas_nomes]
+        writer.writerow(linha)
+
+    data = "\ufeff" + buf.getvalue()
+    return StreamingResponse(
+        iter([data]), media_type="text/csv",
+        headers={"Content-Disposition": 'attachment; filename="garantias3d_completo.csv"'},
     )

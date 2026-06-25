@@ -72,6 +72,8 @@ export const api = {
     request(`/api/tickets/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
   moveTicket: (id, body) =>
     request(`/api/tickets/${id}/move`, { method: "PUT", body: JSON.stringify(body) }),
+  registrarContato: (id) =>
+    request(`/api/tickets/${id}/registrar-contato`, { method: "PUT" }),
   reorderTickets: (column_id, ticket_ids) =>
     request("/api/tickets/reorder", {
       method: "PUT", body: JSON.stringify({ column_id, ticket_ids }) }),
@@ -181,6 +183,11 @@ export const api = {
     ).toString();
     return `${BASE}/api/analytics/export.csv${qs ? `?${qs}` : ""}`;
   },
+  // Linha do tempo de um ticket (por código interno).
+  ticketTimeline: (codigo) =>
+    request(`/api/analytics/ticket-timeline?codigo=${encodeURIComponent(codigo)}`),
+  // CSV largo completo (base inteira) para Power BI.
+  exportCompletoUrl: () => `${BASE}/api/analytics/export-completo.csv`,
 
   // Relatórios
   mttr: () => request("/api/reports/mttr"),

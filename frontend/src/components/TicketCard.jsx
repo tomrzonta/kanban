@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { slaColor, slaStatus, contatoInfo, formatVencimento } from "../hooks/useSla";
+import { slaColor, slaStatus, contatoInfo, formatVencimento, garantiaInfo, GARANTIA_COLORS } from "../hooks/useSla";
 
 const STATUS_BADGE = {
   risco: { txt: "SLA em risco", bg: "#fdf0d5", fg: "#854f0b" },
@@ -28,12 +28,17 @@ export default function TicketCard({ ticket, column, onOpen }) {
   const c = contatoInfo(ticket, column);
   const vencimento = formatVencimento(c.vencimento);
 
+  // Prazo de garantia (30 dias desde a abertura). Não se aplica a concluídos.
+  const g = column.is_done ? { faixa: "normal" } : garantiaInfo(ticket);
+  const critico = g.faixa === "critico";
+
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
     display: "flex", gap: 8, padding: "10px 12px", marginBottom: 8,
-    background: "var(--surface)", border: "1px solid var(--border)",
-    borderLeft: `4px solid ${slaColor(ticket, column)}`,
+    background: critico ? "#fdecec" : "var(--surface)",
+    border: critico ? "1px solid #e03e3e" : "1px solid var(--border)",
+    borderLeft: `4px solid ${critico ? "#e03e3e" : slaColor(ticket, column)}`,
     borderRadius: "0 var(--radius) var(--radius) 0",
     opacity: isDragging ? 0.4 : column.is_done ? 0.85 : 1,
   };
@@ -48,6 +53,20 @@ export default function TicketCard({ ticket, column, onOpen }) {
       </div>
 
       <div style={{ flex: 1, cursor: "pointer" }} onClick={() => onOpen(ticket)}>
+        {critico && (
+          <div style={{ fontSize: 11, fontWeight: 700, color: "#fff",
+                        background: "#e03e3e", borderRadius: 4, padding: "2px 8px",
+                        display: "inline-block", marginBottom: 4 }}>
+            ⚠ CRÍTICO · {g.dias} dias (garantia vencida)
+          </div>
+        )}
+        {!critico && g.faixa === "atencao" && (
+          <div style={{ fontSize: 10, fontWeight: 600, color: "#946800",
+                        background: "#fdf2d8", borderRadius: 4, padding: "1px 7px",
+                        display: "inline-block", marginBottom: 4 }}>
+            {g.dias} dias · garantia em {g.restante}d
+          </div>
+        )}
         {ticket.codigo_interno && (
           <div style={{ fontSize: 10, color: "var(--accent)", fontWeight: 600,
                         letterSpacing: 0.3, marginBottom: 2 }}>
@@ -66,6 +85,11 @@ export default function TicketCard({ ticket, column, onOpen }) {
         {(ticket.responsavel_nome || ticket.responsavel_username) && (
           <div style={{ fontSize: 11, color: "var(--text-tertiary)", marginTop: 2 }}>
             👤 {ticket.responsavel_nome || ticket.responsavel_username}
+          </div>
+        )}
+        {!column.is_done && g.dias != null && g.faixa === "normal" && (
+          <div style={{ fontSize: 11, color: "var(--text-tertiary)", marginTop: 2 }}>
+            🗓 {g.dias} {g.dias === 1 ? "dia" : "dias"} desde a abertura
           </div>
         )}
 
