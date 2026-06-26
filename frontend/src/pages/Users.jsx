@@ -50,6 +50,21 @@ export default function Users({ currentUser }) {
     }
   }
 
+  async function redefinirSenha(u) {
+    const nova = prompt(`Nova senha para "${u.username}":`);
+    if (nova == null) return;            // cancelou
+    if (nova.trim().length < 4) {
+      alert("A senha deve ter ao menos 4 caracteres.");
+      return;
+    }
+    try {
+      await api.resetSenha(u.id, nova);
+      alert(`Senha de "${u.username}" redefinida com sucesso.`);
+    } catch (e) {
+      alert(String(e.message || e).replace(/^API \d+:\s*/, ""));
+    }
+  }
+
   return (
     <div style={{ maxWidth: 760 }}>
       {/* Formulário de novo usuário */}
@@ -123,7 +138,9 @@ export default function Users({ currentUser }) {
                       <option value="admin">Admin</option>
                     </select>
                   </td>
-                  <td style={{ textAlign: "right" }}>
+                  <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
+                    <button onClick={() => redefinirSenha(u)} title="Redefinir senha"
+                            style={{ padding: "2px 8px", marginRight: 4 }}>🔑</button>
                     {!ehVoce && (
                       <button onClick={() => remover(u)} title="Remover"
                               style={{ color: "var(--red)", padding: "2px 8px" }}>🗑</button>

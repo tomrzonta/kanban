@@ -26,9 +26,25 @@ export default function TicketDetail({ ticket, columns, onClose, onMoved, onEdit
     ticket.prejuizo_real != null ? String(ticket.prejuizo_real) : "");
   const [erroMover, setErroMover] = useState(null);
 
+  // Timeline de eventos + comentário.
+  const [eventos, setEventos] = useState([]);
+  const [comentario, setComentario] = useState("");
+
   useEffect(() => {
     api.listDesfechos().then(setDesfechos).catch(() => setDesfechos([]));
-  }, []);
+    api.listEventos(ticket.id).then(setEventos).catch(() => setEventos([]));
+  }, [ticket.id]);
+
+  async function enviarComentario() {
+    if (!comentario.trim()) return;
+    try {
+      await api.addComentario(ticket.id, comentario.trim());
+      setComentario("");
+      setEventos(await api.listEventos(ticket.id));
+    } catch (e) {
+      alert(String(e.message || e).replace(/^API \d+:\s*/, ""));
+    }
+  }
 
   const desfechoSel = desfechos.find((d) => d.id === Number(desfechoId));
   const ehParcial = desfechoSel?.impacto === "parcial";
@@ -295,6 +311,62 @@ export default function TicketDetail({ ticket, columns, onClose, onMoved, onEdit
               ))}
             </div>
           )}
+        </div>
+
+        {/* Timeline: comentários + eventos automáticos */}
+        <div style={{ marginTop: 16, paddingTop: 16,
+                      borderTop: "1px solid var(--border)" }}>
+          <label>Linha do tempo</label>
+          <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+            <input value={comentario} onChange={(e) => setComentario(e.target.value)}
+                   onKeyDown={(e) => e.key === "Enter" && enviarComentario()}
+                   placeholder="Escreva um comentário…" style={{ flex: 1 }} />
+            <button className="primary" onClick={enviarComentario}>Comentar</button>
+          </div>
+
+          {eventos.length === 0 ? (
+            <p style={{ fontSize: 12, color: "var(--text-tertiary)", margin: 0 }}>
+              Nenhuma atividade ainda.
+            </p>
+          ) : (
+            <div style={{ display: "grid", gap: 8 }}>
+              {eventos.map((e) => (
+                <EventoLinha key={e.id} ev={e} />
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Uma linha da timeline. Ícone e cor variam por tipo de evento.
+function EventoLinha({ ev }) {
+  const meta = {
+    comentario: { icone: "💬", cor: "var(--text)" },
+    movimento: { icone: "➡", cor: "var(--text-secondary)" },
+    recebimento: { icone: "📦", cor: "var(--text-secondary)" },
+    desfecho: { icone: "✓", cor: "var(--text-secondary)" },
+    contato: { icone: "📞", cor: "var(--text-secondary)" },
+  }[ev.tipo] || { icone: "•", cor: "var(--text-secondary)" };
+
+  const quando = ev.criado_em
+    ? new Date(ev.criado_em).toLocaleString("pt-BR", {
+        day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })
+    : "";
+  const ehComentario = ev.tipo === "comentario";
+
+  return (
+    <div style={{ display: "flex", gap: 8, fontSize: 13,
+                  background: ehComentario ? "var(--bg)" : "transparent",
+                  borderRadius: "var(--radius)",
+                  padding: ehComentario ? "8px 10px" : "2px 0" }}>
+      <span>{meta.icone}</span>
+      <div style={{ flex: 1 }}>
+        <div style={{ color: meta.cor }}>{ev.texto}</div>
+        <div style={{ fontSize: 11, color: "var(--text-tertiary)" }}>
+          {ev.autor || "Sistema"} · {quando}
         </div>
       </div>
     </div>

@@ -7,6 +7,7 @@ import Concluidos from "./pages/Concluidos";
 import Recebimentos from "./pages/Recebimentos";
 import Catalog from "./pages/Catalog";
 import Users from "./pages/Users";
+import Auditoria from "./pages/Auditoria";
 import Login from "./pages/Login";
 import { api, setToken, getToken } from "./api/client";
 
@@ -49,6 +50,7 @@ export default function App() {
     ...(isAdmin ? [
       { id: "catalog", label: "Catálogo" },
       { id: "users", label: "Usuários" },
+      { id: "auditoria", label: "Auditoria" },
     ] : []),
   ];
 
@@ -97,6 +99,7 @@ export default function App() {
         {view === "dashboard" && <Dashboard />}
         {view === "catalog" && isAdmin && <Catalog />}
         {view === "users" && isAdmin && <Users currentUser={user} />}
+        {view === "auditoria" && isAdmin && <Auditoria />}
       </div>
     </div>
   );

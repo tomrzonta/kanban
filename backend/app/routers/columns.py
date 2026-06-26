@@ -31,8 +31,23 @@ def update_column(column_id: int, p: schemas.ColumnUpdate,
     col = db.query(models.BoardColumn).get(column_id)
     if not col:
         raise HTTPException(404, "Coluna não encontrada.")
-    for k, v in p.model_dump(exclude_unset=True).items():
+    dados = p.model_dump(exclude_unset=True)
+    for k, v in dados.items():
         setattr(col, k, v)
+
+    # Exclusividade: só UMA coluna pode ser final (is_done), e só uma pode ser
+    # destino de recebimento (is_received). Ao ligar a flag numa coluna,
+    # desliga nas demais — evita o caso de tickets "sumirem" da aba Concluídos
+    # por haver mais de uma coluna marcada (ou a marcação na coluna errada).
+    if dados.get("is_done"):
+        (db.query(models.BoardColumn)
+         .filter(models.BoardColumn.id != column_id)
+         .update({"is_done": 0}))
+    if dados.get("is_received"):
+        (db.query(models.BoardColumn)
+         .filter(models.BoardColumn.id != column_id)
+         .update({"is_received": 0}))
+
     db.commit()
     db.refresh(col)
     return col

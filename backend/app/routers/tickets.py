@@ -7,6 +7,9 @@ from sqlalchemy.orm import Session
 
 from app import models, schemas
 from app.core.database import get_db
+from app.core.security import usuario_atual
+from app.services.eventos import registrar_evento
+from app.services.auditoria import registrar_auditoria
 
 router = APIRouter(prefix="/api/tickets", tags=["tickets"])
 
@@ -40,7 +43,9 @@ def list_tickets(db: Session = Depends(get_db)):
 
 
 @router.post("", response_model=schemas.TicketOut)
-def create_ticket(p: schemas.TicketIn, db: Session = Depends(get_db)):
+def create_ticket(p: schemas.TicketIn,
+                  user: models.User = Depends(usuario_atual),
+                  db: Session = Depends(get_db)):
     model = db.query(models.PrinterModel).get(p.printer_model_id)
     if not model:
         raise HTTPException(400, "Modelo de impressora inválido.")
@@ -72,6 +77,8 @@ def create_ticket(p: schemas.TicketIn, db: Session = Depends(get_db)):
         from_column_id=None,
         to_column_id=ticket.column_id,
     ))
+    registrar_auditoria(db, user, "criar", "ticket",
+                        f"Criou o ticket {ticket.codigo_interno} — \"{ticket.titulo}\".")
     db.commit()
     db.refresh(ticket)
     return ticket
@@ -101,6 +108,7 @@ def _proximo_codigo(db: Session) -> str:
 
 @router.patch("/{ticket_id}", response_model=schemas.TicketOut)
 def update_ticket(ticket_id: str, p: schemas.TicketUpdate,
+                  user: models.User = Depends(usuario_atual),
                   db: Session = Depends(get_db)):
     t = db.query(models.Ticket).get(ticket_id)
     if not t:
@@ -111,8 +119,21 @@ def update_ticket(ticket_id: str, p: schemas.TicketUpdate,
     if "retorno_horas" in dados and dados["retorno_horas"] != t.retorno_horas:
         t.retorno_definido_em = datetime.utcnow() if dados["retorno_horas"] else None
 
+    # Detecta mudança de desfecho para registrar na timeline.
+    desfecho_mudou = ("desfecho_id" in dados
+                      and dados["desfecho_id"] != t.desfecho_id)
+
     for k, v in dados.items():
         setattr(t, k, v)
+
+    if desfecho_mudou and t.desfecho_id:
+        desf = db.query(models.Desfecho).get(t.desfecho_id)
+        registrar_evento(db, t.id, models.TIPO_DESFECHO,
+                         f"Desfecho definido: \"{desf.name if desf else '—'}\".",
+                         autor_id=user.id)
+
+    registrar_auditoria(db, user, "editar", "ticket",
+                        f"Editou o ticket {t.codigo_interno}.")
     db.commit()
     db.refresh(t)
     return t
@@ -120,6 +141,7 @@ def update_ticket(ticket_id: str, p: schemas.TicketUpdate,
 
 @router.put("/{ticket_id}/move", response_model=schemas.TicketOut)
 def move_ticket(ticket_id: str, p: schemas.MoveIn,
+                user: models.User = Depends(usuario_atual),
                 db: Session = Depends(get_db)):
     """Move o card ao ser solto em outra coluna ou reordenado.
 
@@ -140,11 +162,22 @@ def move_ticket(ticket_id: str, p: schemas.MoveIn,
                 400,
                 "Para concluir este ticket, informe primeiro o desfecho "
                 "(abra o ticket e selecione o desfecho).")
+        origem = db.query(models.BoardColumn).get(t.column_id)
         db.add(models.TicketHistory(
             ticket_id=t.id,
             from_column_id=t.column_id,
             to_column_id=p.to_column_id,
         ))
+        # Evento na timeline.
+        registrar_evento(
+            db, t.id, models.TIPO_MOVIMENTO,
+            f"Movido de \"{origem.name if origem else '—'}\" para "
+            f"\"{destino.name if destino else '—'}\".",
+            autor_id=user.id)
+        registrar_auditoria(
+            db, user, "mover", "ticket",
+            f"Moveu o ticket {t.codigo_interno} para "
+            f"\"{destino.name if destino else '—'}\".")
         t.column_id = p.to_column_id
         t.last_moved_at = datetime.utcnow()  # reseta o cronômetro de inatividade
 
@@ -155,7 +188,9 @@ def move_ticket(ticket_id: str, p: schemas.MoveIn,
 
 
 @router.put("/{ticket_id}/registrar-contato", response_model=schemas.TicketOut)
-def registrar_contato(ticket_id: str, db: Session = Depends(get_db)):
+def registrar_contato(ticket_id: str,
+                      user: models.User = Depends(usuario_atual),
+                      db: Session = Depends(get_db)):
     """Registra um contato com o cliente e REINICIA o cronômetro do SLA da
     coluna atual (sem mover o ticket). O SLA conta a partir de last_moved_at,
     então atualizá-lo para agora faz a contagem recomeçar do zero.
@@ -164,9 +199,11 @@ def registrar_contato(ticket_id: str, db: Session = Depends(get_db)):
     if not t:
         raise HTTPException(404, "Ticket não encontrado.")
     t.last_moved_at = datetime.utcnow()  # zera o cronômetro do SLA da coluna
-    # Marca também o instante de referência do prazo de retorno, se houver.
     if t.retorno_horas:
         t.retorno_definido_em = datetime.utcnow()
+    registrar_evento(db, t.id, models.TIPO_CONTATO,
+                     "Contato com o cliente registrado; prazo reiniciado.",
+                     autor_id=user.id)
     db.commit()
     db.refresh(t)
     return t

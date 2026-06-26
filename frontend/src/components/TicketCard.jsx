@@ -53,6 +53,24 @@ export default function TicketCard({ ticket, column, onOpen }) {
       </div>
 
       <div style={{ flex: 1, cursor: "pointer" }} onClick={() => onOpen(ticket)}>
+        {!column.is_done && (() => {
+          // Status de SLA da etapa, sempre visível: no prazo / perto / vencido.
+          const st = slaStatus(ticket, column);
+          const rotulo = { ok: "No prazo", warn: "Prazo próximo", late: "SLA vencido" }[st];
+          if (!rotulo) return null;
+          const cores = {
+            ok: { bg: "#e8f5ee", fg: "#1d7a4d" },
+            warn: { bg: "#fdf2d8", fg: "#946800" },
+            late: { bg: "#fdecec", fg: "#a32d2d" },
+          }[st];
+          return (
+            <div style={{ display: "inline-block", fontSize: 10, fontWeight: 600,
+                          background: cores.bg, color: cores.fg,
+                          borderRadius: 4, padding: "1px 7px", marginBottom: 4 }}>
+              {st === "late" ? "⏰ " : ""}{rotulo}
+            </div>
+          );
+        })()}
         {critico && (
           <div style={{ fontSize: 11, fontWeight: 700, color: "#fff",
                         background: "#e03e3e", borderRadius: 4, padding: "2px 8px",

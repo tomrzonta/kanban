@@ -26,7 +26,17 @@ async function request(path, options = {}) {
     window.dispatchEvent(new Event("auth-expired"));
     throw new Error("Sessão expirada. Faça login novamente.");
   }
-  if (!res.ok) throw new Error(`API ${res.status}: ${await res.text()}`);
+  if (!res.ok) {
+    // O FastAPI devolve erros como {"detail": "mensagem"}. Extraímos isso para
+    // a mensagem ficar limpa onde for exibida (toast, alert, etc.).
+    const corpo = await res.text();
+    let msg = corpo;
+    try {
+      const j = JSON.parse(corpo);
+      if (j && j.detail) msg = j.detail;
+    } catch { /* corpo não era JSON, usa como está */ }
+    throw new Error(msg || `Erro ${res.status}`);
+  }
   return res.status === 204 ? null : res.json();
 }
 
@@ -50,6 +60,19 @@ export const api = {
     request("/api/auth/users", { method: "POST", body: JSON.stringify(data) }),
   updateUserRole: (id, role) =>
     request(`/api/auth/users/${id}/role?role=${role}`, { method: "PATCH" }),
+  resetSenha: (id, novaSenha) =>
+    request(`/api/auth/users/${id}/senha?nova_senha=${encodeURIComponent(novaSenha)}`,
+            { method: "PATCH" }),
+
+  // Auditoria (só admin)
+  listAuditoria: ({ entidade, acao, limit = 100, offset = 0 } = {}) => {
+    const qs = new URLSearchParams();
+    if (entidade) qs.set("entidade", entidade);
+    if (acao) qs.set("acao", acao);
+    qs.set("limit", limit); qs.set("offset", offset);
+    return request(`/api/auditoria?${qs.toString()}`);
+  },
+  opcoesAuditoria: () => request("/api/auditoria/opcoes"),
   deleteUser: (id) =>
     request(`/api/auth/users/${id}`, { method: "DELETE" }),
 
@@ -74,6 +97,10 @@ export const api = {
     request(`/api/tickets/${id}/move`, { method: "PUT", body: JSON.stringify(body) }),
   registrarContato: (id) =>
     request(`/api/tickets/${id}/registrar-contato`, { method: "PUT" }),
+  // Timeline do ticket (eventos + comentários)
+  listEventos: (id) => request(`/api/tickets/${id}/eventos`),
+  addComentario: (id, texto) =>
+    request(`/api/tickets/${id}/eventos`, { method: "POST", body: JSON.stringify({ texto }) }),
   reorderTickets: (column_id, ticket_ids) =>
     request("/api/tickets/reorder", {
       method: "PUT", body: JSON.stringify({ column_id, ticket_ids }) }),

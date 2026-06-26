@@ -8,6 +8,7 @@ import Column from "./Column";
 import TicketForm from "./TicketForm";
 import TicketDetail from "./TicketDetail";
 import ColumnManager from "./ColumnManager";
+import { useToast } from "./Toast";
 
 // Verifica se o ticket bate com o texto buscado (em vários campos).
 // Busca vazia mostra tudo. Comparação sem distinção de maiúsc/minúsc.
@@ -37,6 +38,7 @@ export default function KanbanBoard({ isAdmin }) {
   const [selected, setSelected] = useState(null);     // ticket no modal de detalhe
   const [manageCols, setManageCols] = useState(false); // gerenciar colunas
   const [busca, setBusca] = useState("");               // texto de busca no quadro
+  const toast = useToast();
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
@@ -131,8 +133,10 @@ export default function KanbanBoard({ isAdmin }) {
         ];
         await api.reorderTickets(destinoColId, idsDestino);
         carregar();
-      } catch {
+      } catch (e) {
+        // Reverte o card e avisa o motivo (ex: desfecho obrigatório ao concluir).
         carregar();
+        toast.error(String(e.message || "Não foi possível mover o ticket."));
       }
     }
   }

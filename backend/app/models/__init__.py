@@ -9,10 +9,17 @@ from app.models.kanban import (
 )
 from app.models.user import User
 from app.models.recebimento import Recebimento, CONDICOES
+from app.models.ticket_evento import (
+    TicketEvento, TIPO_COMENTARIO, TIPO_MOVIMENTO, TIPO_RECEBIMENTO,
+    TIPO_DESFECHO, TIPO_CONTATO,
+)
+from app.models.audit import AuditLog
 
 __all__ = [
     "PrinterBrand", "PrinterModel", "Supplier", "DefectType", "Desfecho",
     "IMPACTO_SEM_PREJUIZO", "IMPACTO_TOTAL", "IMPACTO_PARCIAL", "IMPACTOS",
     "BoardColumn", "StatusTag", "Attachment", "Ticket", "TicketHistory",
     "OrigemReclamacao", "ticket_tags", "User", "Recebimento", "CONDICOES",
+    "TicketEvento", "TIPO_COMENTARIO", "TIPO_MOVIMENTO", "TIPO_RECEBIMENTO",
+    "TIPO_DESFECHO", "TIPO_CONTATO", "AuditLog",
 ]

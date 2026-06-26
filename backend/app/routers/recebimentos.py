@@ -111,6 +111,18 @@ def criar(p: RecebimentoIn, user: models.User = Depends(usuario_atual),
     )
     db.add(rec)
 
+    # Evento na timeline do ticket.
+    from app.services.eventos import registrar_evento
+    from app.services.auditoria import registrar_auditoria
+    registrar_evento(
+        db, ticket.id, models.TIPO_RECEBIMENTO,
+        f"Recebimento registrado: {p.quantidade} un., condição "
+        f"\"{p.condicao}\".", autor_id=user.id)
+    registrar_auditoria(
+        db, user, "criar", "recebimento",
+        f"Registrou recebimento do ticket {ticket.codigo_interno} "
+        f"({p.quantidade} un., \"{p.condicao}\").")
+
     # Move o ticket para a coluna marcada como 'recebido', se houver uma.
     coluna_recebido = (db.query(models.BoardColumn)
                        .filter_by(is_received=1).first())

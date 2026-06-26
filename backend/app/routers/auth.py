@@ -9,6 +9,7 @@ from app.core.database import get_db
 from app.core.security import (
     hash_senha, verificar_senha, criar_token, usuario_atual, requer_admin,
 )
+from app.services.auditoria import registrar_auditoria
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -33,6 +34,9 @@ def login(form: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get
     user = db.query(models.User).filter_by(username=form.username).first()
     if not user or not user.active or not verificar_senha(form.password, user.password_hash):
         raise HTTPException(401, "Usuário ou senha inválidos.")
+    registrar_auditoria(db, user, "login", "sessao",
+                        f"Login de \"{user.username}\".")
+    db.commit()
     return {
         "access_token": criar_token(user),
         "token_type": "bearer",
@@ -62,7 +66,7 @@ def list_users(_: models.User = Depends(requer_admin), db: Session = Depends(get
 
 
 @router.post("/users", response_model=UserOut)
-def create_user(p: UserCreate, _: models.User = Depends(requer_admin),
+def create_user(p: UserCreate, admin: models.User = Depends(requer_admin),
                 db: Session = Depends(get_db)):
     if db.query(models.User).filter_by(username=p.username).first():
         raise HTTPException(400, "Já existe um usuário com esse login.")
@@ -71,6 +75,8 @@ def create_user(p: UserCreate, _: models.User = Depends(requer_admin),
     user = models.User(username=p.username, nome=p.nome,
                        password_hash=hash_senha(p.senha), role=p.role)
     db.add(user)
+    registrar_auditoria(db, admin, "criar", "usuario",
+                        f"Criou o usuário \"{p.username}\" (papel: {p.role}).")
     db.commit()
     db.refresh(user)
     return user
@@ -88,9 +94,29 @@ def update_role(user_id: int, role: str, admin: models.User = Depends(requer_adm
     if not user:
         raise HTTPException(404, "Usuário não encontrado.")
     user.role = role
+    registrar_auditoria(db, admin, "editar", "usuario",
+                        f"Alterou o papel de \"{user.username}\" para {role}.")
     db.commit()
     db.refresh(user)
     return user
+
+
+@router.patch("/users/{user_id}/senha")
+def reset_senha(user_id: int, nova_senha: str,
+                admin: models.User = Depends(requer_admin),
+                db: Session = Depends(get_db)):
+    """Admin redefine a senha de um usuário (caso de esquecimento). Não exige a
+    senha antiga — é uma redefinição administrativa."""
+    if len(nova_senha.strip()) < 4:
+        raise HTTPException(400, "A senha deve ter ao menos 4 caracteres.")
+    user = db.query(models.User).get(user_id)
+    if not user:
+        raise HTTPException(404, "Usuário não encontrado.")
+    user.password_hash = hash_senha(nova_senha)
+    registrar_auditoria(db, admin, "editar", "usuario",
+                        f"Redefiniu a senha de \"{user.username}\".")
+    db.commit()
+    return {"ok": True}
 
 
 @router.delete("/users/{user_id}")
@@ -102,5 +128,7 @@ def delete_user(user_id: int, admin: models.User = Depends(requer_admin),
     if not user:
         raise HTTPException(404, "Usuário não encontrado.")
     user.active = 0  # soft delete
+    registrar_auditoria(db, admin, "excluir", "usuario",
+                        f"Removeu o usuário \"{user.username}\".")
     db.commit()
     return {"ok": True}

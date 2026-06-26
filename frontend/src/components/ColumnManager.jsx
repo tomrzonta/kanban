@@ -52,6 +52,31 @@ export default function ColumnManager({ columns, onClose, onChange }) {
           <button onClick={onClose} style={{ padding: "4px 10px" }}>✕</button>
         </div>
 
+        {/* Aviso de configuração: qual coluna é a final e qual a de recebimento.
+            Ajuda a evitar tickets "sumindo" da aba Concluídos por marcação errada. */}
+        {(() => {
+          const finais = columns.filter((c) => c.is_done);
+          const receb = columns.filter((c) => c.is_received);
+          return (
+            <div style={{ background: "var(--bg)", borderRadius: "var(--radius)",
+                          padding: "10px 12px", marginBottom: 16, fontSize: 12,
+                          color: "var(--text-secondary)" }}>
+              <div>
+                <strong>Coluna final (conclusão):</strong>{" "}
+                {finais.length === 0
+                  ? <span style={{ color: "var(--red)" }}>nenhuma marcada — tickets concluídos não aparecerão na aba Concluídos.</span>
+                  : finais.map((c) => c.name).join(", ")}
+              </div>
+              <div style={{ marginTop: 4 }}>
+                <strong>Destino ao receber (RMA):</strong>{" "}
+                {receb.length === 0
+                  ? "nenhuma — recebimentos não moverão o ticket."
+                  : receb.map((c) => c.name).join(", ")}
+              </div>
+            </div>
+          );
+        })()}
+
         <div style={{ display: "grid", gap: 10 }}>
           {columns.map((col, idx) => (
             <div key={col.id}
@@ -87,7 +112,7 @@ export default function ColumnManager({ columns, onClose, onChange }) {
                 </span>
                 <label style={{ display: "flex", alignItems: "center", gap: 4,
                                 margin: 0 }}>
-                  <input type="checkbox" defaultChecked={!!col.is_waiting_client}
+                  <input type="checkbox" checked={!!col.is_waiting_client}
                          style={{ width: "auto" }}
                          onChange={(e) => salvarCampo(col, "is_waiting_client",
                                           e.target.checked ? 1 : 0)} />
@@ -95,7 +120,7 @@ export default function ColumnManager({ columns, onClose, onChange }) {
                 </label>
                 <label style={{ display: "flex", alignItems: "center", gap: 4,
                                 margin: 0 }}>
-                  <input type="checkbox" defaultChecked={!!col.is_done}
+                  <input type="checkbox" checked={!!col.is_done}
                          style={{ width: "auto" }}
                          onChange={(e) => salvarCampo(col, "is_done",
                                           e.target.checked ? 1 : 0)} />
@@ -103,7 +128,7 @@ export default function ColumnManager({ columns, onClose, onChange }) {
                 </label>
                 <label style={{ display: "flex", alignItems: "center", gap: 4,
                                 margin: 0 }}>
-                  <input type="checkbox" defaultChecked={!!col.is_received}
+                  <input type="checkbox" checked={!!col.is_received}
                          style={{ width: "auto" }}
                          onChange={(e) => salvarCampo(col, "is_received",
                                           e.target.checked ? 1 : 0)} />
