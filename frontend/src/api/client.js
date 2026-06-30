@@ -73,6 +73,21 @@ export const api = {
     return request(`/api/auditoria?${qs.toString()}`);
   },
   opcoesAuditoria: () => request("/api/auditoria/opcoes"),
+
+  // Base de conhecimento de atendimento (KB)
+  listKb: ({ q, categoria } = {}) => {
+    const p = new URLSearchParams();
+    if (q) p.set("q", q);
+    if (categoria) p.set("categoria", categoria);
+    const qs = p.toString();
+    return request(`/api/kb${qs ? `?${qs}` : ""}`);
+  },
+  kbCategorias: () => request("/api/kb/categorias"),
+  createKb: (data) => request("/api/kb", { method: "POST", body: JSON.stringify(data) }),
+  updateKb: (id, data) => request(`/api/kb/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+  deleteKb: (id) => request(`/api/kb/${id}`, { method: "DELETE" }),
+  toggleFavoritoKb: (id) =>
+    request(`/api/kb/${id}/favorito`, { method: "PATCH" }),
   deleteUser: (id) =>
     request(`/api/auth/users/${id}`, { method: "DELETE" }),
 

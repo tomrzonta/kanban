@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import SnoozePicker from "./SnoozePicker";
 import { api } from "../api/client";
 
 // Formulário de ticket que serve para CRIAR e EDITAR.
@@ -259,15 +260,14 @@ export default function TicketForm({ ticket, columns, onCreated, onClose }) {
             </label>
             {form.requer_contato_cliente ? (
               <div>
-                <label>Retornar em (horas)</label>
-                <input type="number" min="1" value={form.retorno_horas}
-                       onChange={set("retorno_horas")}
-                       placeholder="Ex: 8 — prazo próprio deste ticket"
-                       style={{ maxWidth: 240 }} />
+                <label>Quando retornar ao contato</label>
+                <SnoozePicker
+                  valor={form.retorno_horas ? Number(form.retorno_horas) : null}
+                  onChange={(h) => setForm((f) => ({ ...f, retorno_horas: h }))} />
                 <p style={{ fontSize: 11, color: "var(--text-tertiary)",
                             margin: "6px 0 0" }}>
-                  Quando preenchido, este prazo substitui o SLA da coluna no
-                  cálculo da cor do card. A contagem começa ao salvar.
+                  Este prazo substitui o SLA da coluna no cálculo da cor do card.
+                  A contagem começa ao salvar.
                 </p>
               </div>
             ) : null}
