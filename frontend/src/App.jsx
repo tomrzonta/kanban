@@ -1,6 +1,8 @@
 // Componente raiz. Controla autenticação: sem login mostra a tela de Login;
 // logado mostra o app. A aba Catálogo só aparece para admin.
 import { useState, useEffect } from "react";
+import { useTheme } from "./hooks/useTheme";
+import logo from "./assets/logo-stlflix.png";
 import KanbanBoard from "./components/KanbanBoard";
 import Dashboard from "./pages/Dashboard";
 import Concluidos from "./pages/Concluidos";
@@ -16,6 +18,7 @@ export default function App() {
   const [user, setUser] = useState(null);
   const [carregando, setCarregando] = useState(true);
   const [view, setView] = useState("kanban");
+  const { tema, alternar } = useTheme();
 
   // Ao abrir, se há token salvo, valida com /me para recuperar a sessão.
   useEffect(() => {
@@ -61,7 +64,7 @@ export default function App() {
     borderBottom: active ? "2px solid var(--accent)" : "2px solid transparent",
     background: "none", cursor: "pointer",
     fontWeight: active ? 600 : 400,
-    color: active ? "var(--text)" : "var(--text-secondary)",
+    color: active ? "var(--accent)" : "var(--text-secondary)",
   });
 
   return (
@@ -69,18 +72,27 @@ export default function App() {
       <header className="app-header" style={{ marginBottom: 16 }}>
         <div style={{ display: "flex", justifyContent: "space-between",
                       alignItems: "center", marginBottom: 12 }}>
-          <h1 style={{ fontSize: 22 }}>Garantias 3D</h1>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <img src={logo} alt="STLFLIX" style={{ height: 32 }} />
+            <h1 style={{ fontSize: 22, margin: 0, fontWeight: 700 }}>
+              Garantias <span style={{ color: "var(--accent)" }}>STLFLIX</span>
+            </h1>
+          </div>
           <div style={{ display: "flex", alignItems: "center", gap: 12,
                         fontSize: 13, color: "var(--text-secondary)" }}>
             <span>
               {user.nome || user.username}
               <span style={{ marginLeft: 6, fontSize: 11,
-                             background: isAdmin ? "#e6f1fb" : "#eee",
-                             color: isAdmin ? "#185fa5" : "#666",
+                             background: isAdmin ? "var(--accent-soft)" : "#eef1f5",
+                             color: isAdmin ? "var(--accent)" : "#666",
                              padding: "1px 8px", borderRadius: 10 }}>
                 {isAdmin ? "admin" : "atendente"}
               </span>
             </span>
+            <button onClick={alternar} title="Alternar tema claro/escuro"
+                    style={{ padding: "4px 10px" }}>
+              {tema === "dark" ? "☀ Claro" : "🌙 Escuro"}
+            </button>
             <button onClick={logout}>Sair</button>
           </div>
         </div>

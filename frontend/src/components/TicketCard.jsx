@@ -36,7 +36,7 @@ export default function TicketCard({ ticket, column, onOpen }) {
     transform: CSS.Transform.toString(transform),
     transition,
     display: "flex", gap: 8, padding: "10px 12px", marginBottom: 8,
-    background: critico ? "#fdecec" : "var(--surface)",
+    background: critico ? "rgba(224, 62, 62, 0.12)" : "var(--surface)",
     border: critico ? "1px solid #e03e3e" : "1px solid var(--border)",
     borderLeft: `4px solid ${critico ? "#e03e3e" : slaColor(ticket, column)}`,
     borderRadius: "0 var(--radius) var(--radius) 0",

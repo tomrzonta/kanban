@@ -14,6 +14,29 @@ export function getToken() {
   return _token;
 }
 
+// Baixa um arquivo de um endpoint autenticado: faz fetch com o token, recebe o
+// conteúdo como blob e dispara o salvamento no navegador com o nome dado.
+async function baixarArquivo(path, nomeArquivo) {
+  const headers = {};
+  if (_token) headers.Authorization = `Bearer ${_token}`;
+  const res = await fetch(`${BASE}${path}`, { headers });
+  if (res.status === 401) {
+    setToken(null);
+    window.dispatchEvent(new Event("auth-expired"));
+    throw new Error("Sessão expirada. Faça login novamente.");
+  }
+  if (!res.ok) throw new Error("Não foi possível baixar o arquivo.");
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = nomeArquivo;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
 async function request(path, options = {}) {
   const headers = { "Content-Type": "application/json", ...(options.headers || {}) };
   if (_token) headers.Authorization = `Bearer ${_token}`;
@@ -65,12 +88,17 @@ export const api = {
             { method: "PATCH" }),
 
   // Auditoria (só admin)
-  listAuditoria: ({ entidade, acao, limit = 100, offset = 0 } = {}) => {
-    const qs = new URLSearchParams();
-    if (entidade) qs.set("entidade", entidade);
-    if (acao) qs.set("acao", acao);
-    qs.set("limit", limit); qs.set("offset", offset);
-    return request(`/api/auditoria?${qs.toString()}`);
+  listAuditoria: ({ entidade, acao, autor, q, date_from, date_to,
+                    limit = 50, offset = 0 } = {}) => {
+    const p = new URLSearchParams();
+    if (entidade) p.set("entidade", entidade);
+    if (acao) p.set("acao", acao);
+    if (autor) p.set("autor", autor);
+    if (q) p.set("q", q);
+    if (date_from) p.set("date_from", date_from);
+    if (date_to) p.set("date_to", date_to);
+    p.set("limit", limit); p.set("offset", offset);
+    return request(`/api/auditoria?${p.toString()}`);
   },
   opcoesAuditoria: () => request("/api/auditoria/opcoes"),
 
@@ -219,17 +247,26 @@ export const api = {
     ).toString();
     return request(`/api/analytics/dashboard${qs ? `?${qs}` : ""}`);
   },
-  analyticsExportUrl: (filtros) => {
+  // Exportações em CSV. Não dá para usar um link <a href> simples porque o
+  // backend exige autenticação e o token vai no cabeçalho (não em cookie); um
+  // link navegaria sem o token e retornaria "Not authenticated". Então baixamos
+  // via fetch (com o token) e salvamos o blob no navegador.
+  baixarExportFiltrado: (filtros) => {
     const qs = new URLSearchParams(
       Object.entries(filtros).filter(([, v]) => v !== "" && v != null)
     ).toString();
-    return `${BASE}/api/analytics/export.csv${qs ? `?${qs}` : ""}`;
+    return baixarArquivo(`/api/analytics/export.csv${qs ? `?${qs}` : ""}`,
+                         "garantias_filtrado.csv");
   },
   // Linha do tempo de um ticket (por código interno).
   ticketTimeline: (codigo) =>
     request(`/api/analytics/ticket-timeline?codigo=${encodeURIComponent(codigo)}`),
   // CSV largo completo (base inteira) para Power BI.
-  exportCompletoUrl: () => `${BASE}/api/analytics/export-completo.csv`,
+  baixarExportCompleto: () =>
+    baixarArquivo("/api/analytics/export-completo.csv",
+                  "garantias3d_completo.csv"),
+  // Comparação temporal (mês atual vs. anterior + série mensal).
+  comparativo: () => request("/api/analytics/comparativo"),
 
   // Relatórios
   mttr: () => request("/api/reports/mttr"),

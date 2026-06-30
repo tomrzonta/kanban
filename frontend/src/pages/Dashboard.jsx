@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback } from "react";
 import {
   BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, Tooltip, Legend,
-  CartesianGrid,
+  CartesianGrid, LineChart, Line,
 } from "recharts";
 import { api } from "../api/client";
+import { useToast } from "../components/Toast";
 
 // Dashboard analítico com filtros que recalculam tudo (estilo Power BI).
 // Gráficos com DIMENSÕES FIXAS (sem ResponsiveContainer) para renderização
@@ -24,6 +25,24 @@ export default function Dashboard() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [filtros, setFiltros] = useState(FILTROS_VAZIOS);
+  const toast = useToast();
+  const [baixando, setBaixando] = useState(false);
+  const [comp, setComp] = useState(null);
+
+  useEffect(() => { api.comparativo().then(setComp).catch(() => setComp(null)); }, []);
+
+  async function baixarFiltrado() {
+    setBaixando(true);
+    try { await api.baixarExportFiltrado(filtros); }
+    catch (e) { toast.error(String(e.message || "Falha ao baixar o CSV.")); }
+    finally { setBaixando(false); }
+  }
+  async function baixarCompleto() {
+    setBaixando(true);
+    try { await api.baixarExportCompleto(); }
+    catch (e) { toast.error(String(e.message || "Falha ao baixar o CSV.")); }
+    finally { setBaixando(false); }
+  }
 
   const [brands, setBrands] = useState([]);
   const [suppliers, setSuppliers] = useState([]);
@@ -112,16 +131,18 @@ export default function Dashboard() {
         </Filtro>
         <button onClick={limpar}>Limpar</button>
         <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
-          <a href={api.analyticsExportUrl(filtros)}>
-            <button className="primary">⬇ CSV (filtrado)</button>
-          </a>
-          <a href={api.exportCompletoUrl()}>
-            <button title="Base completa, todos os campos, para Power BI">
-              ⬇ CSV completo (Power BI)
-            </button>
-          </a>
+          <button className="primary" onClick={baixarFiltrado} disabled={baixando}>
+            ⬇ CSV (filtrado)
+          </button>
+          <button onClick={baixarCompleto} disabled={baixando}
+                  title="Base completa, todos os campos, para Power BI">
+            ⬇ CSV completo (Power BI)
+          </button>
         </div>
       </div>
+
+      {/* Comparação temporal: mês atual vs. anterior + tendência mensal. */}
+      {comp && <Comparativo comp={comp} />}
 
       {/* Busca de um ticket específico: linha do tempo por etapa. */}
       <div style={{ background: "var(--surface)", border: "1px solid var(--border)",
@@ -159,16 +180,17 @@ export default function Dashboard() {
                  value={k.mttr_horas ? `${k.mttr_horas.toFixed(1)} h` : "—"} />
           </div>
 
+          {/* Taxa de resolução: dos tickets classificados, quanto foi resolvido
+              sem perda vs. com perda. */}
+          {data.taxa_resolucao && <TaxaResolucao tr={data.taxa_resolucao} />}
+
           {/* Gráficos: largura fixa, quebram em linhas conforme a tela. */}
           <div style={{ display: "flex", flexWrap: "wrap", gap: 16 }}>
-            <Card title="Tickets por fabricante">
-              <Barras data={data.por_fabricante} y="qtd" fill="#1d9e75" />
-            </Card>
-            <Card title="Prejuízo por fabricante (R$)">
-              <Barras data={data.por_fabricante} y="prejuizo" fill="#e03e3e" />
-            </Card>
             <Card title="Tickets por modelo">
               <Barras data={data.por_modelo} y="qtd" fill="#185fa5" />
+            </Card>
+            <Card title="Prejuízo por modelo (R$)">
+              <Barras data={data.por_modelo} y="prejuizo" fill="#e03e3e" />
             </Card>
             <Card title="Tickets por fornecedor">
               <Barras data={data.por_fornecedor} y="qtd" fill="#0891b2" />
@@ -231,6 +253,175 @@ export default function Dashboard() {
           )}
         </>
       )}
+    </div>
+  );
+}
+
+function TaxaResolucao({ tr }) {
+  const fmtMoeda = (v) => `R$ ${Number(v).toLocaleString("pt-BR", { maximumFractionDigits: 0 })}`;
+  if (!tr.total_classificados) {
+    return (
+      <div style={{ background: "var(--surface)", border: "1px solid var(--border)",
+                    borderRadius: "var(--radius-lg)", padding: 16, marginBottom: 16 }}>
+        <h2 style={{ fontSize: 17, margin: "0 0 4px" }}>Taxa de resolução</h2>
+        <p style={{ color: "var(--text-tertiary)", fontSize: 13, margin: 0 }}>
+          Nenhum ticket classificado com desfecho ainda. Defina o desfecho dos
+          tickets concluídos para ver esta análise.
+        </p>
+      </div>
+    );
+  }
+  // Barra empilhada: sem prejuízo (verde), parcial (amarelo), total (vermelho).
+  const seg = [
+    { k: "sem_prejuizo", label: "Resolvido sem perda", cor: "#1d7a4d" },
+    { k: "parcial", label: "Perda parcial", cor: "#f5a623" },
+    { k: "total", label: "Perda total", cor: "#e03e3e" },
+  ];
+  return (
+    <div style={{ background: "var(--surface)", border: "1px solid var(--border)",
+                  borderRadius: "var(--radius-lg)", padding: 16, marginBottom: 16 }}>
+      <h2 style={{ fontSize: 17, margin: "0 0 4px" }}>Taxa de resolução</h2>
+      <p style={{ color: "var(--text-secondary)", fontSize: 13, margin: "0 0 14px" }}>
+        Dos {tr.total_classificados} tickets classificados,{" "}
+        <strong style={{ color: "#1d7a4d" }}>{tr.pct_resolvido}% resolvidos sem perda</strong>{" "}
+        e {tr.pct_com_perda}% com alguma perda.
+      </p>
+
+      {/* Barra empilhada proporcional. */}
+      <div style={{ display: "flex", height: 28, borderRadius: 6,
+                    overflow: "hidden", marginBottom: 14 }}>
+        {seg.map((s) => {
+          const d = tr[s.k];
+          if (!d || d.pct === 0) return null;
+          return (
+            <div key={s.k} title={`${s.label}: ${d.pct}%`}
+                 style={{ width: `${d.pct}%`, background: s.cor, color: "#fff",
+                          fontSize: 11, fontWeight: 600, display: "flex",
+                          alignItems: "center", justifyContent: "center" }}>
+              {d.pct >= 8 ? `${d.pct}%` : ""}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Detalhe por categoria. */}
+      <div style={{ display: "grid",
+                    gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))",
+                    gap: 12 }}>
+        {seg.map((s) => {
+          const d = tr[s.k];
+          return (
+            <div key={s.k} style={{ background: "var(--bg)",
+                                    borderRadius: "var(--radius)", padding: "10px 12px",
+                                    borderLeft: `3px solid ${s.cor}` }}>
+              <div style={{ fontSize: 12, color: "var(--text-secondary)" }}>{s.label}</div>
+              <div style={{ fontSize: 18, fontWeight: 700, marginTop: 2 }}>
+                {d.qtd} <span style={{ fontSize: 13, fontWeight: 400,
+                                       color: "var(--text-tertiary)" }}>({d.pct}%)</span>
+              </div>
+              {d.prejuizo > 0 && (
+                <div style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 2 }}>
+                  {fmtMoeda(d.prejuizo)} em perdas
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function Comparativo({ comp }) {
+  const { kpis, serie } = comp;
+  const fmtMoeda = (v) => `R$ ${Number(v).toLocaleString("pt-BR",
+    { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+  const fmtHoras = (h) => h < 24 ? `${h.toFixed(0)}h`
+    : `${Math.floor(h / 24)}d ${Math.round(h % 24)}h`;
+  const fmtMes = (m) => {
+    const [a, mes] = m.split("-");
+    return `${["jan","fev","mar","abr","mai","jun","jul","ago","set","out","nov","dez"][+mes-1]}/${a.slice(2)}`;
+  };
+
+  const cards = [
+    { chave: "tickets", label: "Tickets abertos", fmt: (v) => v, melhorMenor: false },
+    { chave: "prejuizo", label: "Prejuízo efetivo", fmt: fmtMoeda, melhorMenor: true },
+    { chave: "tempo_medio_horas", label: "Tempo médio de resolução", fmt: fmtHoras, melhorMenor: true },
+    { chave: "recebimentos", label: "Recebimentos (RMA)", fmt: (v) => v, melhorMenor: false },
+  ];
+
+  return (
+    <div style={{ background: "var(--surface)", border: "1px solid var(--border)",
+                  borderRadius: "var(--radius-lg)", padding: 16 }}>
+      <h2 style={{ fontSize: 17, margin: "0 0 4px" }}>Comparação com o mês anterior</h2>
+      <p style={{ color: "var(--text-secondary)", fontSize: 13, margin: "0 0 16px" }}>
+        Mês atual em relação ao mês passado, e a tendência dos últimos meses.
+      </p>
+
+      <div style={{ display: "grid",
+                    gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+                    gap: 12, marginBottom: 20 }}>
+        {cards.map((c) => {
+          const d = kpis[c.chave];
+          const v = d.variacao_pct;
+          // Cor: verde = melhora, vermelho = piora (depende se menor é melhor).
+          let cor = "var(--text-tertiary)", seta = "→";
+          if (v != null && v !== 0) {
+            const subiu = v > 0;
+            seta = subiu ? "▲" : "▼";
+            const bom = c.melhorMenor ? !subiu : subiu;
+            cor = bom ? "#1d7a4d" : "#c2410c";
+          }
+          return (
+            <div key={c.chave} style={{ background: "var(--bg)",
+                                        borderRadius: "var(--radius)", padding: "12px 14px" }}>
+              <div style={{ fontSize: 12, color: "var(--text-secondary)" }}>{c.label}</div>
+              <div style={{ fontSize: 22, fontWeight: 700, marginTop: 4 }}>
+                {c.fmt(d.atual)}
+              </div>
+              <div style={{ fontSize: 12, marginTop: 4, color: cor }}>
+                {seta} {v == null ? "—" : `${Math.abs(v)}%`}
+                <span style={{ color: "var(--text-tertiary)" }}>
+                  {" "}vs. {c.fmt(d.anterior)}
+                </span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Tendência mensal: tickets (barras/linha) e prejuízo. */}
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 16 }}>
+        <div style={{ flex: 1, minWidth: 320 }}>
+          <div style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 6 }}>
+            Tickets abertos por mês
+          </div>
+          <LineChart width={420} height={220} data={serie}
+                     margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+            <XAxis dataKey="mes" tickFormatter={fmtMes} fontSize={11} />
+            <YAxis fontSize={11} allowDecimals={false} />
+            <Tooltip labelFormatter={fmtMes} />
+            <Line type="monotone" dataKey="tickets" stroke="#2563c8"
+                  strokeWidth={2} name="Tickets" />
+          </LineChart>
+        </div>
+        <div style={{ flex: 1, minWidth: 320 }}>
+          <div style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 6 }}>
+            Prejuízo efetivo por mês
+          </div>
+          <LineChart width={420} height={220} data={serie}
+                     margin={{ top: 5, right: 20, bottom: 5, left: 10 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+            <XAxis dataKey="mes" tickFormatter={fmtMes} fontSize={11} />
+            <YAxis fontSize={11} tickFormatter={(v) => `R$${(v/1000).toFixed(0)}k`} />
+            <Tooltip labelFormatter={fmtMes}
+                     formatter={(v) => fmtMoeda(v)} />
+            <Line type="monotone" dataKey="prejuizo" stroke="#c2410c"
+                  strokeWidth={2} name="Prejuízo" />
+          </LineChart>
+        </div>
+      </div>
     </div>
   );
 }

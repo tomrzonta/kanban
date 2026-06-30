@@ -52,7 +52,10 @@ export default function TicketDetail({ ticket, columns, onClose, onMoved, onEdit
   async function registrarContatoCliente() {
     try {
       await api.registrarContato(ticket.id);
-      onMoved(); // recarrega para refletir o cronômetro reiniciado
+      // Fecha o detalhe: a flag de contato foi desligada e a lista recarrega,
+      // então o aviso some do card. onMoved já dispara o recarregamento + close.
+      onMoved();
+      onClose?.();
     } catch (e) {
       alert(String(e.message || e).replace(/^API \d+:\s*/, ""));
     }
@@ -168,12 +171,14 @@ export default function TicketDetail({ ticket, columns, onClose, onMoved, onEdit
           </div>
         )}
 
-        {/* Botão de registrar contato — reinicia o cronômetro do SLA da coluna. */}
+        {/* Botão: marca que o contato foi feito — desliga o aviso e volta ao
+            SLA normal da coluna. Para agendar um próximo contato, use o prazo
+            de retorno na edição do ticket. */}
         {c.precisaContato && !colunaAtual?.is_done && (
           <div style={{ marginBottom: 12 }}>
             <button onClick={registrarContatoCliente}
                     style={{ background: "#185fa5", color: "#fff" }}>
-              📞 Registrar contato com o cliente (reinicia o prazo)
+              📞 Marcar contato como feito
             </button>
           </div>
         )}

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { api } from "../api/client";
+import { useToast } from "../components/Toast";
 import TicketDetail from "../components/TicketDetail";
 
 // Aba de consulta de tickets concluídos: lista com filtros, exportável,
@@ -14,6 +15,15 @@ export default function Concluidos({ isAdmin }) {
   const [filtros, setFiltros] = useState(FILTROS_VAZIOS);
   const [selected, setSelected] = useState(null);
   const [columns, setColumns] = useState([]);
+  const toast = useToast();
+  const [baixando, setBaixando] = useState(false);
+
+  async function baixarCsv() {
+    setBaixando(true);
+    try { await api.baixarExportFiltrado(filtros); }
+    catch (e) { toast.error(String(e.message || "Falha ao baixar o CSV.")); }
+    finally { setBaixando(false); }
+  }
 
   const [brands, setBrands] = useState([]);
   const [defects, setDefects] = useState([]);
@@ -62,9 +72,10 @@ export default function Concluidos({ isAdmin }) {
           <input type="date" value={filtros.date_to} onChange={set("date_to")} />
         </div>
         <button onClick={() => setFiltros(FILTROS_VAZIOS)}>Limpar</button>
-        <a href={api.analyticsExportUrl(filtros)} style={{ marginLeft: "auto" }}>
-          <button className="primary">⬇ Exportar CSV</button>
-        </a>
+        <button className="primary" onClick={baixarCsv} disabled={baixando}
+                style={{ marginLeft: "auto" }}>
+          ⬇ Exportar CSV
+        </button>
       </div>
 
       {loading ? (

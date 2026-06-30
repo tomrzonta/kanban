@@ -179,6 +179,44 @@ def dashboard(f: dict = Depends(filtros), db: Session = Depends(get_db)):
     por_desfecho = agrupado("dsf2.name",
         "LEFT JOIN desfechos dsf2 ON dsf2.id = t.desfecho_id")
 
+    # --- Taxa de resolução: dos tickets COM desfecho, quanto foi resolvido sem
+    # prejuízo vs. parcial vs. perda total. Fecha o ciclo dos desfechos. ---
+    resolucao_rows = db.execute(text(f"""
+        SELECT dsf.impacto AS impacto,
+               COUNT(t.id) AS qtd,
+               COALESCE(SUM({PREJUIZO_EFETIVO}), 0) AS prejuizo
+        FROM tickets t
+        JOIN printer_models m ON m.id = t.printer_model_id
+        JOIN printer_brands b ON b.id = m.brand_id
+        JOIN desfechos dsf ON dsf.id = t.desfecho_id
+        {where}
+        GROUP BY dsf.impacto
+    """), params).mappings().all()
+
+    # Organiza por categoria de impacto, com totais e percentuais.
+    resol = {"sem_prejuizo": {"qtd": 0, "prejuizo": 0.0},
+             "parcial": {"qtd": 0, "prejuizo": 0.0},
+             "total": {"qtd": 0, "prejuizo": 0.0}}
+    for r in resolucao_rows:
+        imp = r["impacto"] or "total"
+        if imp not in resol:
+            resol[imp] = {"qtd": 0, "prejuizo": 0.0}
+        resol[imp]["qtd"] += r["qtd"]
+        resol[imp]["prejuizo"] += float(r["prejuizo"] or 0)
+
+    total_classificados = sum(v["qtd"] for v in resol.values())
+    pct = lambda n: round(n / total_classificados * 100, 1) if total_classificados else 0
+
+    taxa_resolucao = {
+        "total_classificados": total_classificados,
+        "sem_prejuizo": {**resol["sem_prejuizo"], "pct": pct(resol["sem_prejuizo"]["qtd"])},
+        "parcial": {**resol["parcial"], "pct": pct(resol["parcial"]["qtd"])},
+        "total": {**resol["total"], "pct": pct(resol["total"]["qtd"])},
+        # "Resolvido sem perda" = sem prejuízo; "com alguma perda" = parcial+total.
+        "pct_resolvido": pct(resol["sem_prejuizo"]["qtd"]),
+        "pct_com_perda": pct(resol["parcial"]["qtd"] + resol["total"]["qtd"]),
+    }
+
     # --- Distribuição por coluna atual (status do funil) ---
     por_coluna = [dict(r) for r in db.execute(text(f"""
         SELECT c.name AS nome, COUNT(t.id) AS qtd
@@ -266,6 +304,7 @@ def dashboard(f: dict = Depends(filtros), db: Session = Depends(get_db)):
         "por_origem": por_origem,
         "por_responsavel": por_responsavel,
         "por_desfecho": por_desfecho,
+        "taxa_resolucao": taxa_resolucao,
         "por_coluna": por_coluna,
         "gargalos": gargalos,
         "recebimentos": {
@@ -526,3 +565,128 @@ def export_completo(db: Session = Depends(get_db)):
         iter([data]), media_type="text/csv",
         headers={"Content-Disposition": 'attachment; filename="garantias3d_completo.csv"'},
     )
+
+
+@router.get("/comparativo")
+def comparativo(db: Session = Depends(get_db)):
+    """Comparação temporal: KPIs do mês atual vs. mês anterior (com variação %)
+    e série mensal dos últimos 12 meses. Base para ver tendência, não só o total.
+
+    Métricas: tickets abertos (por created_at), prejuízo efetivo (dos concluídos
+    no mês, pela 1ª chegada em coluna is_done), tempo médio de resolução (horas
+    da criação até a conclusão) e recebimentos (por data_recebimento).
+    """
+    # --- KPIs por mês (atual e anterior) ---
+    # Tickets criados no mês.
+    def kpis_mes(inicio_expr, fim_expr):
+        params = {}
+        # Tickets abertos no período (por criação).
+        abertos = db.execute(text(f"""
+            SELECT COUNT(*) FROM tickets t
+            WHERE t.created_at >= {inicio_expr} AND t.created_at < {fim_expr}
+        """), params).scalar()
+        # Concluídos no período: usa a 1ª chegada em coluna is_done.
+        # prejuízo efetivo e tempo de resolução são calculados sobre eles.
+        linha = db.execute(text(f"""
+            WITH conclusao AS (
+                SELECT t.id, t.created_at,
+                       t.custo_unitario, t.quantidade, t.prejuizo_real,
+                       dsf.impacto,
+                       MIN(h.moved_at) AS concluido_em
+                FROM tickets t
+                JOIN ticket_history h ON h.ticket_id = t.id
+                JOIN columns c ON c.id = h.to_column_id AND c.is_done = 1
+                LEFT JOIN desfechos dsf ON dsf.id = t.desfecho_id
+                GROUP BY t.id, t.created_at, t.custo_unitario, t.quantidade,
+                         t.prejuizo_real, dsf.impacto
+            )
+            SELECT
+                COUNT(*) FILTER (WHERE concluido_em >= {inicio_expr}
+                                   AND concluido_em < {fim_expr}) AS concluidos,
+                COALESCE(SUM(
+                    CASE WHEN concluido_em >= {inicio_expr} AND concluido_em < {fim_expr}
+                    THEN CASE
+                        WHEN impacto = 'sem_prejuizo' THEN 0
+                        WHEN impacto = 'parcial' THEN COALESCE(prejuizo_real, 0)
+                        ELSE custo_unitario * quantidade
+                    END ELSE 0 END), 0) AS prejuizo,
+                COALESCE(AVG(
+                    CASE WHEN concluido_em >= {inicio_expr} AND concluido_em < {fim_expr}
+                    THEN EXTRACT(EPOCH FROM (concluido_em - created_at)) / 3600
+                    END), 0) AS tempo_medio_horas
+            FROM conclusao
+        """), params).mappings().first()
+        recebimentos = db.execute(text(f"""
+            SELECT COUNT(*) FROM recebimentos r
+            WHERE r.data_recebimento >= CAST({inicio_expr} AS date)
+              AND r.data_recebimento < CAST({fim_expr} AS date)
+        """), params).scalar()
+        return {
+            "tickets": abertos or 0,
+            "prejuizo": float(linha["prejuizo"] or 0),
+            "tempo_medio_horas": round(float(linha["tempo_medio_horas"] or 0), 1),
+            "recebimentos": recebimentos or 0,
+        }
+
+    # date_trunc para o 1º dia do mês atual; intervalos via Postgres.
+    ini_atual = "date_trunc('month', NOW())"
+    ini_ant = "date_trunc('month', NOW()) - INTERVAL '1 month'"
+    fim_futuro = "date_trunc('month', NOW()) + INTERVAL '1 month'"
+
+    atual = kpis_mes(ini_atual, fim_futuro)
+    anterior = kpis_mes(ini_ant, ini_atual)
+
+    def variacao(a, b):
+        # Variação % de 'a' (atual) sobre 'b' (anterior). None se base zero.
+        if b == 0:
+            return None
+        return round((a - b) / b * 100, 1)
+
+    kpis = {}
+    for chave in ("tickets", "prejuizo", "tempo_medio_horas", "recebimentos"):
+        kpis[chave] = {
+            "atual": atual[chave],
+            "anterior": anterior[chave],
+            "variacao_pct": variacao(atual[chave], anterior[chave]),
+        }
+
+    # --- Série mensal (últimos 12 meses): tickets criados e prejuízo concluído ---
+    serie_tickets = db.execute(text("""
+        SELECT TO_CHAR(date_trunc('month', t.created_at), 'YYYY-MM') AS mes,
+               COUNT(*) AS qtd
+        FROM tickets t
+        WHERE t.created_at >= date_trunc('month', NOW()) - INTERVAL '11 months'
+        GROUP BY 1 ORDER BY 1
+    """)).mappings().all()
+
+    serie_prejuizo = db.execute(text(f"""
+        WITH conclusao AS (
+            SELECT t.id, t.custo_unitario, t.quantidade, t.prejuizo_real,
+                   dsf.impacto, MIN(h.moved_at) AS concluido_em
+            FROM tickets t
+            JOIN ticket_history h ON h.ticket_id = t.id
+            JOIN columns c ON c.id = h.to_column_id AND c.is_done = 1
+            LEFT JOIN desfechos dsf ON dsf.id = t.desfecho_id
+            GROUP BY t.id, t.custo_unitario, t.quantidade, t.prejuizo_real, dsf.impacto
+        )
+        SELECT TO_CHAR(date_trunc('month', concluido_em), 'YYYY-MM') AS mes,
+               COALESCE(SUM(CASE
+                   WHEN impacto = 'sem_prejuizo' THEN 0
+                   WHEN impacto = 'parcial' THEN COALESCE(prejuizo_real, 0)
+                   ELSE custo_unitario * quantidade END), 0) AS prejuizo
+        FROM conclusao
+        WHERE concluido_em >= date_trunc('month', NOW()) - INTERVAL '11 months'
+        GROUP BY 1 ORDER BY 1
+    """)).mappings().all()
+
+    # Combina as duas séries num único array por mês (para o gráfico de linha).
+    meses = {}
+    for r in serie_tickets:
+        meses.setdefault(r["mes"], {"mes": r["mes"], "tickets": 0, "prejuizo": 0})
+        meses[r["mes"]]["tickets"] = r["qtd"]
+    for r in serie_prejuizo:
+        meses.setdefault(r["mes"], {"mes": r["mes"], "tickets": 0, "prejuizo": 0})
+        meses[r["mes"]]["prejuizo"] = float(r["prejuizo"] or 0)
+    serie = sorted(meses.values(), key=lambda x: x["mes"])
+
+    return {"kpis": kpis, "serie": serie}

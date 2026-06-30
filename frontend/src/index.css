@@ -2,19 +2,48 @@
    e evita repetir cores/espaçamentos espalhados pelos componentes. */
 
 :root {
-  --bg: #f7f7f5;
+  --bg: #f5f7fa;
   --surface: #ffffff;
-  --border: #e5e5e0;
-  --text: #1a1a18;
-  --text-secondary: #6b6b66;
-  --text-tertiary: #9b9b96;
+  --border: #e3e8ef;
+  --text: #1a2230;
+  --text-secondary: #5b6675;
+  --text-tertiary: #95a0b0;
   --green: #3ba55d;
   --amber: #f5a623;
   --red: #e03e3e;
   --gray: #888780;
-  --accent: #1d9e75;
+  /* Azul da marca STLFLIX (extraído da logo). */
+  --accent: #2563c8;
+  --accent-dark: #2040a0;
+  --accent-light: #20a0f0;
+  --accent-soft: #eaf1fc;
+  /* Botões neutros: superfície e borda dedicadas (contraste em ambos os temas). */
+  --btn-bg: #ffffff;
+  --btn-border: #c5cdd9;
+  --btn-hover: #eef1f6;
+  --field-bg: #ffffff;
+  --brand-gradient: linear-gradient(135deg, #20a0f0 0%, #2563c8 55%, #2040a0 100%);
   --radius: 8px;
   --radius-lg: 12px;
+}
+
+/* Tema escuro: ativado por data-theme="dark" no <html>. Redefine só as
+   variáveis de superfície/texto — o resto do sistema as consome. */
+:root[data-theme="dark"] {
+  --bg: #0e1420;
+  --surface: #1a2233;
+  --border: #2c3650;
+  --text: #e6ebf2;
+  --text-secondary: #9aa6ba;
+  --text-tertiary: #6b7689;
+  --accent: #4d92f0;
+  --accent-dark: #2563c8;
+  --accent-light: #5db4ff;
+  --accent-soft: #1c2c46;
+  --btn-bg: #283452;
+  --btn-border: #3e4d6e;
+  --btn-hover: #344163;
+  --field-bg: #0e1626;
 }
 
 * { box-sizing: border-box; }
@@ -34,27 +63,29 @@ button {
   font-family: inherit;
   font-size: 13px;
   padding: 7px 14px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--btn-border);
   border-radius: var(--radius);
-  background: var(--surface);
+  background: var(--btn-bg);
+  color: var(--text);
   cursor: pointer;
-  transition: background 0.15s;
+  transition: background 0.15s, border-color 0.15s;
 }
-button:hover { background: #f0f0ec; }
+button:hover { background: var(--btn-hover); border-color: var(--accent); }
 button.primary {
   background: var(--accent);
   color: #fff;
   border-color: var(--accent);
 }
-button.primary:hover { background: #178a65; }
+button.primary:hover { background: var(--accent-dark); border-color: var(--accent-dark); }
 
 input, select, textarea {
   font-family: inherit;
   font-size: 14px;
   padding: 8px 10px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--btn-border);
   border-radius: var(--radius);
-  background: var(--surface);
+  background: var(--field-bg);
+  color: var(--text);
   width: 100%;
 }
 input:focus, select:focus, textarea:focus {
@@ -81,6 +112,15 @@ label {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+}
+/* Faixa fina da marca no topo da janela. */
+body::before {
+  content: "";
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  height: 4px;
+  background: var(--brand-gradient);
+  z-index: 100;
 }
 .app-header { flex-shrink: 0; }
 .app-content { flex: 1; min-height: 0; }       /* min-height:0 permite o filho rolar */

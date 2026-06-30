@@ -191,18 +191,22 @@ def move_ticket(ticket_id: str, p: schemas.MoveIn,
 def registrar_contato(ticket_id: str,
                       user: models.User = Depends(usuario_atual),
                       db: Session = Depends(get_db)):
-    """Registra um contato com o cliente e REINICIA o cronômetro do SLA da
-    coluna atual (sem mover o ticket). O SLA conta a partir de last_moved_at,
-    então atualizá-lo para agora faz a contagem recomeçar do zero.
+    """Registra que o contato com o cliente foi FEITO. Desliga a necessidade de
+    contato (o aviso some) e o ticket volta a contar pelo SLA normal da coluna.
+
+    Se o usuário quiser agendar um próximo contato, usa o campo de prazo de
+    retorno (snooze) na edição do ticket — esse é o fluxo separado.
     """
     t = db.query(models.Ticket).get(ticket_id)
     if not t:
         raise HTTPException(404, "Ticket não encontrado.")
-    t.last_moved_at = datetime.utcnow()  # zera o cronômetro do SLA da coluna
-    if t.retorno_horas:
-        t.retorno_definido_em = datetime.utcnow()
+    # Contato realizado: desliga o aviso e limpa o prazo de retorno individual.
+    t.requer_contato_cliente = 0
+    t.retorno_horas = None
+    t.retorno_definido_em = None
+    t.last_moved_at = datetime.utcnow()  # reinicia o cronômetro do SLA da coluna
     registrar_evento(db, t.id, models.TIPO_CONTATO,
-                     "Contato com o cliente registrado; prazo reiniciado.",
+                     "Contato com o cliente registrado.",
                      autor_id=user.id)
     db.commit()
     db.refresh(t)
