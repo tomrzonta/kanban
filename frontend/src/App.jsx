@@ -5,8 +5,10 @@ import { useTheme } from "./hooks/useTheme";
 import logo from "./assets/logo-stlflix.png";
 import KanbanBoard from "./components/KanbanBoard";
 import Dashboard from "./pages/Dashboard";
+import Diretoria from "./pages/Diretoria";
 import Concluidos from "./pages/Concluidos";
 import Recebimentos from "./pages/Recebimentos";
+import Compras from "./pages/Compras";
 import Catalog from "./pages/Catalog";
 import Users from "./pages/Users";
 import Auditoria from "./pages/Auditoria";
@@ -49,8 +51,10 @@ export default function App() {
   const TABS = [
     { id: "kanban", label: "Quadro" },
     { id: "recebimentos", label: "Recebimentos" },
+    { id: "compras", label: "Compras" },
     { id: "concluidos", label: "Concluídos" },
-    { id: "dashboard", label: "Dashboard" },
+    ...(isAdmin ? [{ id: "diretoria", label: "Diretoria" }] : []),
+    { id: "dashboard", label: "Operacional" },
     { id: "atendimento", label: "Atendimento" },
     ...(isAdmin ? [
       { id: "catalog", label: "Catálogo" },
@@ -109,8 +113,10 @@ export default function App() {
       <div className={`app-content${view !== "kanban" ? " scrollable" : ""}`}>
         {view === "kanban" && <KanbanBoard isAdmin={isAdmin} />}
         {view === "recebimentos" && <Recebimentos />}
+        {view === "compras" && <Compras />}
         {view === "concluidos" && <Concluidos isAdmin={isAdmin} />}
         {view === "dashboard" && <Dashboard />}
+        {view === "diretoria" && isAdmin && <Diretoria />}
         {view === "atendimento" && <Atendimento />}
         {view === "catalog" && isAdmin && <Catalog />}
         {view === "users" && isAdmin && <Users currentUser={user} />}

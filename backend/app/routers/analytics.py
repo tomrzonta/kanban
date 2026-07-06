@@ -28,6 +28,7 @@ router = APIRouter(prefix="/api/analytics", tags=["analytics"])
 PREJUIZO_EFETIVO = """
     CASE
         WHEN dsf.impacto = 'sem_prejuizo' THEN 0
+        WHEN dsf.impacto = 'informativo' THEN 0
         WHEN dsf.impacto = 'parcial' THEN COALESCE(t.prejuizo_real, 0)
         ELSE t.custo_unitario * t.quantidade
     END
@@ -179,6 +180,12 @@ def dashboard(f: dict = Depends(filtros), db: Session = Depends(get_db)):
     por_desfecho = agrupado("dsf2.name",
         "LEFT JOIN desfechos dsf2 ON dsf2.id = t.desfecho_id")
 
+    # Custo por desfecho: só os desfechos que geraram prejuízo (> 0), ordenado
+    # pelo valor. Esconde sem-prejuízo/informativo (que somam zero).
+    custo_por_desfecho = sorted(
+        [d for d in por_desfecho if (d.get("prejuizo") or 0) > 0],
+        key=lambda d: d["prejuizo"], reverse=True)
+
     # --- Taxa de resolução: dos tickets COM desfecho, quanto foi resolvido sem
     # prejuízo vs. parcial vs. perda total. Fecha o ciclo dos desfechos. ---
     resolucao_rows = db.execute(text(f"""
@@ -196,7 +203,8 @@ def dashboard(f: dict = Depends(filtros), db: Session = Depends(get_db)):
     # Organiza por categoria de impacto, com totais e percentuais.
     resol = {"sem_prejuizo": {"qtd": 0, "prejuizo": 0.0},
              "parcial": {"qtd": 0, "prejuizo": 0.0},
-             "total": {"qtd": 0, "prejuizo": 0.0}}
+             "total": {"qtd": 0, "prejuizo": 0.0},
+             "informativo": {"qtd": 0, "prejuizo": 0.0}}
     for r in resolucao_rows:
         imp = r["impacto"] or "total"
         if imp not in resol:
@@ -207,13 +215,16 @@ def dashboard(f: dict = Depends(filtros), db: Session = Depends(get_db)):
     total_classificados = sum(v["qtd"] for v in resol.values())
     pct = lambda n: round(n / total_classificados * 100, 1) if total_classificados else 0
 
+    # Informativos contam como "resolvido" (não são perda), mas não geram dinheiro.
+    qtd_resolvido = resol["sem_prejuizo"]["qtd"] + resol["informativo"]["qtd"]
     taxa_resolucao = {
         "total_classificados": total_classificados,
         "sem_prejuizo": {**resol["sem_prejuizo"], "pct": pct(resol["sem_prejuizo"]["qtd"])},
+        "informativo": {**resol["informativo"], "pct": pct(resol["informativo"]["qtd"])},
         "parcial": {**resol["parcial"], "pct": pct(resol["parcial"]["qtd"])},
         "total": {**resol["total"], "pct": pct(resol["total"]["qtd"])},
-        # "Resolvido sem perda" = sem prejuízo; "com alguma perda" = parcial+total.
-        "pct_resolvido": pct(resol["sem_prejuizo"]["qtd"]),
+        # "Resolvido" = sem prejuízo + informativo; "com perda" = parcial + total.
+        "pct_resolvido": pct(qtd_resolvido),
         "pct_com_perda": pct(resol["parcial"]["qtd"] + resol["total"]["qtd"]),
     }
 
@@ -304,6 +315,7 @@ def dashboard(f: dict = Depends(filtros), db: Session = Depends(get_db)):
         "por_origem": por_origem,
         "por_responsavel": por_responsavel,
         "por_desfecho": por_desfecho,
+        "custo_por_desfecho": custo_por_desfecho,
         "taxa_resolucao": taxa_resolucao,
         "por_coluna": por_coluna,
         "gargalos": gargalos,
@@ -319,14 +331,25 @@ def dashboard(f: dict = Depends(filtros), db: Session = Depends(get_db)):
 
 
 @router.get("/concluidos")
-def concluidos(f: dict = Depends(filtros), db: Session = Depends(get_db)):
+def concluidos(f: dict = Depends(filtros),
+               desfecho_id: int | None = None,
+               so_com_custo: bool = False,
+               db: Session = Depends(get_db)):
     """Lista todos os tickets em coluna de conclusão (is_done), com filtros.
 
     Inclui os recém-concluídos (ainda visíveis no quadro) e os antigos. A regra
     de 'sumir do quadro após 48h' é aplicada no frontend; aqui devolvemos todos.
+
+    Filtros extras da aba: desfecho_id (um desfecho específico) e so_com_custo
+    (apenas desfechos de impacto parcial ou total — os que geraram prejuízo).
     """
     where, params = _where(**f)
     extra = "AND c.is_done = 1" if where else "WHERE c.is_done = 1"
+    if desfecho_id:
+        extra += " AND t.desfecho_id = :desfecho_id"
+        params["desfecho_id"] = desfecho_id
+    if so_com_custo:
+        extra += " AND dsf.impacto IN ('parcial', 'total')"
     rows = db.execute(text(f"""
         SELECT t.id, t.titulo, b.name AS fabricante, m.name AS modelo,
                s.name AS fornecedor_nome, df.name AS defeito_nome,
@@ -353,9 +376,21 @@ def concluidos(f: dict = Depends(filtros), db: Session = Depends(get_db)):
 
 
 @router.get("/export.csv")
-def export_csv(f: dict = Depends(filtros), db: Session = Depends(get_db)):
+def export_csv(f: dict = Depends(filtros),
+               desfecho_id: int | None = None,
+               so_com_custo: bool = False,
+               db: Session = Depends(get_db)):
     """Exporta a tabela de tickets do recorte filtrado em CSV (abre no Excel)."""
     where, params = _where(**f)
+    # Filtros extras de desfecho (mesma semântica da aba Concluídos).
+    extra = ""
+    if desfecho_id:
+        extra += " AND t.desfecho_id = :desfecho_id"
+        params["desfecho_id"] = desfecho_id
+    if so_com_custo:
+        extra += " AND dsf.impacto IN ('parcial', 'total')"
+    if extra and not where:
+        extra = "WHERE " + extra[5:]  # troca o 1º 'AND' por 'WHERE'
     rows = db.execute(text(f"""
         SELECT t.id, t.codigo_interno, t.titulo, b.name AS fabricante, m.name AS modelo,
                s.name AS fornecedor, df.name AS defeito,
@@ -371,7 +406,7 @@ def export_csv(f: dict = Depends(filtros), db: Session = Depends(get_db)):
         LEFT JOIN defect_types df ON df.id = t.defect_type_id
         LEFT JOIN desfechos dsf ON dsf.id = t.desfecho_id
         JOIN columns c ON c.id = t.column_id
-        {where}
+        {where} {extra}
         ORDER BY t.created_at DESC
     """), params).mappings().all()
 
@@ -613,7 +648,18 @@ def comparativo(db: Session = Depends(get_db)):
                 COALESCE(AVG(
                     CASE WHEN concluido_em >= {inicio_expr} AND concluido_em < {fim_expr}
                     THEN EXTRACT(EPOCH FROM (concluido_em - created_at)) / 3600
-                    END), 0) AS tempo_medio_horas
+                    END), 0) AS tempo_medio_horas,
+                -- Economia: valor cheio potencial (custo×qtd) menos o prejuízo
+                -- efetivo. É o quanto o atendimento EVITOU de perda. Casos
+                -- informativos (sem valor financeiro) não contam.
+                COALESCE(SUM(
+                    CASE WHEN concluido_em >= {inicio_expr} AND concluido_em < {fim_expr}
+                         AND impacto <> 'informativo'
+                    THEN (custo_unitario * quantidade) - CASE
+                        WHEN impacto = 'sem_prejuizo' THEN 0
+                        WHEN impacto = 'parcial' THEN COALESCE(prejuizo_real, 0)
+                        ELSE custo_unitario * quantidade
+                    END ELSE 0 END), 0) AS economia
             FROM conclusao
         """), params).mappings().first()
         recebimentos = db.execute(text(f"""
@@ -624,6 +670,7 @@ def comparativo(db: Session = Depends(get_db)):
         return {
             "tickets": abertos or 0,
             "prejuizo": float(linha["prejuizo"] or 0),
+            "economia": float(linha["economia"] or 0),
             "tempo_medio_horas": round(float(linha["tempo_medio_horas"] or 0), 1),
             "recebimentos": recebimentos or 0,
         }
@@ -643,7 +690,7 @@ def comparativo(db: Session = Depends(get_db)):
         return round((a - b) / b * 100, 1)
 
     kpis = {}
-    for chave in ("tickets", "prejuizo", "tempo_medio_horas", "recebimentos"):
+    for chave in ("tickets", "prejuizo", "economia", "tempo_medio_horas", "recebimentos"):
         kpis[chave] = {
             "atual": atual[chave],
             "anterior": anterior[chave],

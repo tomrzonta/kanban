@@ -8,7 +8,7 @@ const ToastContext = createContext(null);
 export function useToast() {
   const ctx = useContext(ToastContext);
   // Fallback seguro: se por algum motivo não houver provider, não quebra a tela.
-  if (!ctx) return { show: () => {}, error: () => {}, success: () => {} };
+  if (!ctx) return { show: () => {}, error: () => {}, success: () => {}, info: () => {} };
   return ctx;
 }
 
@@ -21,17 +21,17 @@ export function ToastProvider({ children }) {
     setToasts((lista) => lista.filter((t) => t.id !== id));
   }, []);
 
-  const show = useCallback((mensagem, tipo = "info") => {
+  const show = useCallback((mensagem, tipo = "info", duracao = DURACAO_MS) => {
     const id = Date.now() + Math.random();
     setToasts((lista) => [...lista, { id, mensagem, tipo }]);
-    setTimeout(() => remover(id), DURACAO_MS);
+    setTimeout(() => remover(id), duracao);
   }, [remover]);
 
   const api = {
     show,
-    error: (m) => show(m, "error"),
-    success: (m) => show(m, "success"),
-    info: (m) => show(m, "info"),
+    error: (m, dur) => show(m, "error", dur),
+    success: (m, dur) => show(m, "success", dur),
+    info: (m, dur) => show(m, "info", dur),
   };
 
   const cores = {

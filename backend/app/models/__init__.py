@@ -1,7 +1,7 @@
 """Reexporta todos os modelos para que Base.metadata os conheça ao criar tabelas."""
 from app.models.catalog import (
     PrinterBrand, PrinterModel, Supplier, DefectType, Desfecho,
-    IMPACTO_SEM_PREJUIZO, IMPACTO_TOTAL, IMPACTO_PARCIAL, IMPACTOS,
+    IMPACTO_SEM_PREJUIZO, IMPACTO_TOTAL, IMPACTO_PARCIAL, IMPACTO_INFORMATIVO, IMPACTOS,
 )
 from app.models.kanban import (
     BoardColumn, StatusTag, Attachment, Ticket, TicketHistory,
@@ -15,12 +15,13 @@ from app.models.ticket_evento import (
 )
 from app.models.audit import AuditLog
 from app.models.kb import KbArtigo
+from app.models.compra import Compra
 
 __all__ = [
     "PrinterBrand", "PrinterModel", "Supplier", "DefectType", "Desfecho",
-    "IMPACTO_SEM_PREJUIZO", "IMPACTO_TOTAL", "IMPACTO_PARCIAL", "IMPACTOS",
+    "IMPACTO_SEM_PREJUIZO", "IMPACTO_TOTAL", "IMPACTO_PARCIAL", "IMPACTO_INFORMATIVO", "IMPACTOS",
     "BoardColumn", "StatusTag", "Attachment", "Ticket", "TicketHistory",
     "OrigemReclamacao", "ticket_tags", "User", "Recebimento", "CONDICOES",
     "TicketEvento", "TIPO_COMENTARIO", "TIPO_MOVIMENTO", "TIPO_RECEBIMENTO",
-    "TIPO_DESFECHO", "TIPO_CONTATO", "AuditLog", "KbArtigo",
+    "TIPO_DESFECHO", "TIPO_CONTATO", "AuditLog", "KbArtigo", "Compra",
 ]

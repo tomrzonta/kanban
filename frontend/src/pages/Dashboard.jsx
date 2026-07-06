@@ -204,6 +204,9 @@ export default function Dashboard() {
             <Card title="Tickets por desfecho">
               <Pizza data={data.por_desfecho} />
             </Card>
+            <Card title="Custo por desfecho (R$)">
+              <BarrasCusto data={data.custo_por_desfecho} />
+            </Card>
             <Card title="Tickets por origem">
               <Pizza data={data.por_origem} />
             </Card>
@@ -274,6 +277,7 @@ function TaxaResolucao({ tr }) {
   // Barra empilhada: sem prejuízo (verde), parcial (amarelo), total (vermelho).
   const seg = [
     { k: "sem_prejuizo", label: "Resolvido sem perda", cor: "#1d7a4d" },
+    { k: "informativo", label: "Informativo", cor: "#2563c8" },
     { k: "parcial", label: "Perda parcial", cor: "#f5a623" },
     { k: "total", label: "Perda total", cor: "#e03e3e" },
   ];
@@ -283,7 +287,7 @@ function TaxaResolucao({ tr }) {
       <h2 style={{ fontSize: 17, margin: "0 0 4px" }}>Taxa de resolução</h2>
       <p style={{ color: "var(--text-secondary)", fontSize: 13, margin: "0 0 14px" }}>
         Dos {tr.total_classificados} tickets classificados,{" "}
-        <strong style={{ color: "#1d7a4d" }}>{tr.pct_resolvido}% resolvidos sem perda</strong>{" "}
+        <strong style={{ color: "#1d7a4d" }}>{tr.pct_resolvido}% resolvidos</strong>{" "}
         e {tr.pct_com_perda}% com alguma perda.
       </p>
 
@@ -527,6 +531,37 @@ function Card({ title, children }) {
 }
 
 // Gráficos com tamanho fixo (sem ResponsiveContainer) — renderização garantida.
+// Barras de custo (R$) por categoria, com o valor e a quantidade de casos no
+// tooltip. Usado no gráfico de custo por desfecho.
+function BarrasCusto({ data, fill = "#e03e3e" }) {
+  if (!data || data.length === 0) return <Vazio />;
+  const fmtMoeda = (v) => `R$ ${Number(v).toLocaleString("pt-BR", { maximumFractionDigits: 0 })}`;
+  const tip = ({ active, payload, label }) => {
+    if (!active || !payload || !payload.length) return null;
+    const d = payload[0].payload;
+    return (
+      <div style={{ background: "var(--surface)", border: "1px solid var(--border)",
+                    borderRadius: 6, padding: "8px 10px", fontSize: 12 }}>
+        <div style={{ fontWeight: 600, marginBottom: 2 }}>{label}</div>
+        <div>Prejuízo: {fmtMoeda(d.prejuizo)}</div>
+        <div style={{ color: "var(--text-secondary)" }}>
+          {d.qtd} {d.qtd === 1 ? "caso" : "casos"}
+          {d.qtd > 0 && ` · média ${fmtMoeda(d.prejuizo / d.qtd)}`}
+        </div>
+      </div>
+    );
+  };
+  return (
+    <BarChart width={CHART_W} height={CHART_H} data={data}>
+      <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+      <XAxis dataKey="nome" tick={{ fontSize: 11 }} />
+      <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `R$${(v/1000).toFixed(0)}k`} />
+      <Tooltip content={tip} />
+      <Bar dataKey="prejuizo" fill={fill} radius={[4, 4, 0, 0]} />
+    </BarChart>
+  );
+}
+
 function Barras({ data, y, fill }) {
   if (!data || data.length === 0) return <Vazio />;
   return (

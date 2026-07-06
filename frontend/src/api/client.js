@@ -116,6 +116,32 @@ export const api = {
   deleteKb: (id) => request(`/api/kb/${id}`, { method: "DELETE" }),
   toggleFavoritoKb: (id) =>
     request(`/api/kb/${id}/favorito`, { method: "PATCH" }),
+
+  // Compras / equipamentos
+  listCompras: (q) =>
+    request(`/api/compras${q ? `?q=${encodeURIComponent(q)}` : ""}`),
+  criarCompra: (data) =>
+    request("/api/compras", { method: "POST", body: JSON.stringify(data) }),
+  colarCompras: (linhas) =>
+    request("/api/compras/colar", { method: "POST", body: JSON.stringify({ linhas }) }),
+  sincronizarCatalogoCompras: () =>
+    request("/api/compras/sincronizar-catalogo", { method: "POST" }),
+  updateCompra: (id, data) =>
+    request(`/api/compras/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+  deleteCompra: (id) =>
+    request(`/api/compras/${id}`, { method: "DELETE" }),
+  // Busca por número de série (autopreenchimento do ticket). Retorna null em 404.
+  compraPorSerie: async (sn) => {
+    try {
+      return await request(`/api/compras/por-serie/${encodeURIComponent(sn)}`);
+    } catch (e) {
+      if (String(e.message || e).includes("404") ||
+          String(e.message || e).toLowerCase().includes("não encontrado")) {
+        return null;
+      }
+      throw e;
+    }
+  },
   deleteUser: (id) =>
     request(`/api/auth/users/${id}`, { method: "DELETE" }),
 
@@ -186,7 +212,13 @@ export const api = {
     request(`/api/tickets/attachments/${attId}`, { method: "DELETE" }),
 
   // Recebimentos (RMA)
-  listRecebimentos: () => request("/api/recebimentos"),
+  listRecebimentos: ({ apenasConcluidos, incluirConcluidos } = {}) => {
+    const p = new URLSearchParams();
+    if (apenasConcluidos) p.set("apenas_concluidos", "true");
+    if (incluirConcluidos) p.set("incluir_concluidos", "true");
+    const qs = p.toString();
+    return request(`/api/recebimentos${qs ? `?${qs}` : ""}`);
+  },
   recebimentoCondicoes: () => request("/api/recebimentos/condicoes"),
   ticketsAbertos: (q) =>
     request(`/api/recebimentos/tickets-abertos${q ? `?q=${encodeURIComponent(q)}` : ""}`),
@@ -235,7 +267,7 @@ export const api = {
   // Tickets concluídos (com filtros) para a aba de consulta.
   concluidos: (filtros) => {
     const qs = new URLSearchParams(
-      Object.entries(filtros).filter(([, v]) => v !== "" && v != null)
+      Object.entries(filtros).filter(([, v]) => v !== "" && v != null && v !== false)
     ).toString();
     return request(`/api/analytics/concluidos${qs ? `?${qs}` : ""}`);
   },
@@ -253,7 +285,7 @@ export const api = {
   // via fetch (com o token) e salvamos o blob no navegador.
   baixarExportFiltrado: (filtros) => {
     const qs = new URLSearchParams(
-      Object.entries(filtros).filter(([, v]) => v !== "" && v != null)
+      Object.entries(filtros).filter(([, v]) => v !== "" && v != null && v !== false)
     ).toString();
     return baixarArquivo(`/api/analytics/export.csv${qs ? `?${qs}` : ""}`,
                          "garantias_filtrado.csv");

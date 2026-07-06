@@ -58,7 +58,8 @@ class DefectType(Base):
 IMPACTO_SEM_PREJUIZO = "sem_prejuizo"   # conta R$ 0
 IMPACTO_TOTAL = "total"                  # conta custo_unitario * quantidade
 IMPACTO_PARCIAL = "parcial"              # conta um valor informado no ticket
-IMPACTOS = [IMPACTO_SEM_PREJUIZO, IMPACTO_TOTAL, IMPACTO_PARCIAL]
+IMPACTO_INFORMATIVO = "informativo"      # caso sem valor financeiro (ex: 2ª via de NF)
+IMPACTOS = [IMPACTO_SEM_PREJUIZO, IMPACTO_TOTAL, IMPACTO_PARCIAL, IMPACTO_INFORMATIVO]
 
 
 class Desfecho(Base):

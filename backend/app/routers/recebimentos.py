@@ -62,9 +62,21 @@ def tickets_abertos(q: str | None = None, db: Session = Depends(get_db)):
 
 
 @router.get("")
-def listar(db: Session = Depends(get_db)):
-    """Lista todas as entradas de recebimento, com dados do ticket."""
-    rows = db.execute(text("""
+def listar(incluir_concluidos: bool = False, apenas_concluidos: bool = False,
+           db: Session = Depends(get_db)):
+    """Lista as entradas de recebimento, com dados do ticket.
+
+    Por padrão mostra só os de tickets NÃO concluídos (o que interessa na aba
+    Recebimentos — o trabalho em andamento). `apenas_concluidos` faz o inverso
+    (para a sub-aba de recebimentos concluídos); `incluir_concluidos` traz todos.
+    """
+    if apenas_concluidos:
+        cond = "WHERE COALESCE(c.is_done, 0) = 1"
+    elif incluir_concluidos:
+        cond = ""
+    else:
+        cond = "WHERE COALESCE(c.is_done, 0) = 0"
+    rows = db.execute(text(f"""
         SELECT r.id, r.data_recebimento, r.numero_nf, r.quantidade,
                r.condicao, r.observacao,
                u.nome AS criado_por_nome, u.username AS criado_por_username,
@@ -75,17 +87,21 @@ def listar(db: Session = Depends(get_db)):
                t.retorno_definido_em, t.printer_model_id, t.quantidade AS ticket_qtd,
                t.custo_unitario, t.supplier_id, t.defect_type_id, t.responsavel_id,
                t.column_id, t.order_index, t.created_at, t.last_moved_at,
+               t.desfecho_id, dsf.name AS desfecho_nome,
                b.name AS marca, b.name AS fabricante, m.name AS modelo,
                s.name AS fornecedor_nome, df.name AS defeito_nome,
                ru.nome AS responsavel_nome, ru.username AS responsavel_username
         FROM recebimentos r
         JOIN tickets t ON t.id = r.ticket_id
+        JOIN columns c ON c.id = t.column_id
         JOIN printer_models m ON m.id = t.printer_model_id
         JOIN printer_brands b ON b.id = m.brand_id
         LEFT JOIN suppliers s ON s.id = t.supplier_id
         LEFT JOIN defect_types df ON df.id = t.defect_type_id
+        LEFT JOIN desfechos dsf ON dsf.id = t.desfecho_id
         LEFT JOIN users u ON u.id = r.criado_por_id
         LEFT JOIN users ru ON ru.id = t.responsavel_id
+        {cond}
         ORDER BY r.data_recebimento DESC, r.id DESC
     """)).mappings().all()
     return [dict(r) for r in rows]

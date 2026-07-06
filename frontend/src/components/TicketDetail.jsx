@@ -224,6 +224,7 @@ export default function TicketDetail({ ticket, columns, onClose, onMoved, onEdit
               {desfechoSel.impacto === "sem_prejuizo" && "Este desfecho não conta prejuízo nas análises."}
               {desfechoSel.impacto === "total" && "Conta o valor cheio (custo × quantidade) como prejuízo."}
               {desfechoSel.impacto === "parcial" && "Conta como prejuízo o valor informado ao lado."}
+              {desfechoSel.impacto === "informativo" && "Caso informativo: fica fora dos cálculos de dinheiro (conta como resolvido, sem prejuízo nem economia)."}
             </div>
           )}
         </div>

@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import SnoozePicker from "./SnoozePicker";
 import { api } from "../api/client";
+import { useToast } from "./Toast";
 
 // Formulário de ticket que serve para CRIAR e EDITAR.
 // Se `ticket` vier preenchido, entra em modo edição (PATCH); senão, cria (POST).
@@ -22,6 +23,9 @@ export default function TicketForm({ ticket, columns, onCreated, onClose }) {
   const [users, setUsers] = useState([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
+  // Modelo (nome) a aplicar assim que os modelos da marca carregarem — usado
+  // pelo autopreenchimento por SN, para evitar corrida com o carregamento.
+  const [modeloPendente, setModeloPendente] = useState(null);
 
   const [form, setForm] = useState({
     titulo: ticket?.titulo || "",
@@ -56,10 +60,54 @@ export default function TicketForm({ ticket, columns, onCreated, onClose }) {
       setModels([]);
       return;
     }
-    api.listModels(form.brand_id).then(setModels);
-  }, [form.brand_id]);
+    api.listModels(form.brand_id).then((lista) => {
+      setModels(lista);
+      // Se há um modelo pendente (vindo do autopreenchimento por SN), casa
+      // pelo nome agora que a lista existe — evita a corrida de estado.
+      if (modeloPendente) {
+        const m = lista.find(
+          (x) => x.name.trim().toLowerCase() === modeloPendente.trim().toLowerCase());
+        if (m) setForm((f) => ({ ...f, printer_model_id: m.id }));
+        setModeloPendente(null);
+      }
+    });
+  }, [form.brand_id, modeloPendente]);
 
+  const toast = useToast();
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  // Ao sair do campo de número de série, busca na base de compras e, se achar,
+  // autopreenche marca e modelo. Se não achar, avisa e deixa preenchimento manual.
+  async function buscarPorSerie() {
+    const sn = (form.serial_number || "").trim();
+    if (!sn || editando) return;  // só no cadastro; edição não remexe a impressora
+    const T = 7000; // avisos de SN ficam mais tempo, para dar tempo de ler
+    try {
+      const compra = await api.compraPorSerie(sn);
+      if (!compra) {
+        toast.info(`SN não encontrado: ${sn}. Preencha a marca e o modelo manualmente.`, T);
+        return;
+      }
+      const forn = compra.fornecedor ? ` — Fornecedor: ${compra.fornecedor}` : "";
+      // Casa a marca com o catálogo (case-insensitive).
+      const marcaCat = brands.find(
+        (b) => b.name.trim().toLowerCase() === (compra.marca || "").trim().toLowerCase());
+      if (!marcaCat) {
+        toast.info(`Equipamento encontrado: ${compra.marca} ${compra.modelo}${forn}. `
+          + `A marca não está no catálogo — cadastre-a ou selecione manualmente.`, T);
+        return;
+      }
+      // Marca a "intenção" de modelo; o efeito de brand_id aplica quando a lista
+      // de modelos carregar (evita corrida entre setModels e a seleção).
+      setModeloPendente(compra.modelo || null);
+      setForm((f) => ({ ...f, brand_id: marcaCat.id, printer_model_id: "" }));
+
+      toast.success(`Equipamento encontrado: ${compra.marca} ${compra.modelo}${forn}. `
+        + `Confira se o modelo foi selecionado.`, T);
+    } catch (e) {
+      toast.error(String(e.message || e));
+    }
+  }
 
   async function salvar() {
     setError(null);
@@ -232,7 +280,8 @@ export default function TicketForm({ ticket, columns, onCreated, onClose }) {
             <div>
               <label>Número de série (SN)</label>
               <input value={form.serial_number} onChange={set("serial_number")}
-                     placeholder="SN da impressora" />
+                     onBlur={buscarPorSerie}
+                     placeholder="Digite a SN para buscar o equipamento" />
             </div>
           </div>
 

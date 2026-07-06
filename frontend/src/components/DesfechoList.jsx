@@ -6,6 +6,7 @@ const IMPACTOS = [
   { v: "sem_prejuizo", label: "Sem prejuízo (conta R$ 0)" },
   { v: "parcial", label: "Prejuízo parcial (valor informado no ticket)" },
   { v: "total", label: "Prejuízo total (valor cheio)" },
+  { v: "informativo", label: "Informativo (sem valor financeiro — ex: 2ª via de NF)" },
 ];
 
 const rotuloImpacto = (v) => IMPACTOS.find((i) => i.v === v)?.label || v;
@@ -88,8 +89,10 @@ function Row({ item, onChange, onDelete }) {
       {editing ? (
         <>
           <input value={nome} onChange={(e) => setNome(e.target.value)}
-                 style={{ flex: 1 }} />
-          <select value={impacto} onChange={(e) => setImpacto(e.target.value)}>
+                 autoFocus placeholder="Nome do desfecho"
+                 style={{ flex: 1, minWidth: 160 }} />
+          <select value={impacto} onChange={(e) => setImpacto(e.target.value)}
+                  style={{ flex: "0 1 200px", minWidth: 0 }}>
             {IMPACTOS.map((i) => <option key={i.v} value={i.v}>{i.label}</option>)}
           </select>
           <button onClick={salvar}>OK</button>
