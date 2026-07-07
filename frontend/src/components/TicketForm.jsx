@@ -37,6 +37,7 @@ export default function TicketForm({ ticket, columns, onCreated, onClose }) {
     origem: ticket?.origem || "Atendimento Interno",
     quantidade: ticket?.quantidade || 1,
     codigo_rastreio: ticket?.codigo_rastreio || "",
+    ticket_suporte_externo: ticket?.ticket_suporte_externo || "",
     serial_number: ticket?.serial_number || "",
     requer_contato_cliente: ticket?.requer_contato_cliente || 0,
     retorno_horas: ticket?.retorno_horas || "",
@@ -134,6 +135,7 @@ export default function TicketForm({ ticket, columns, onCreated, onClose }) {
           ...fks,
           numero_nf: form.numero_nf || null,
           codigo_rastreio: form.codigo_rastreio || null,
+          ticket_suporte_externo: form.ticket_suporte_externo || null,
           serial_number: form.serial_number || null,
           notas: form.notas || null,
           quantidade: Number(form.quantidade),
@@ -155,6 +157,7 @@ export default function TicketForm({ ticket, columns, onCreated, onClose }) {
           quantidade: Number(payload.quantidade),
           numero_nf: payload.numero_nf || null,
           codigo_rastreio: payload.codigo_rastreio || null,
+          ticket_suporte_externo: payload.ticket_suporte_externo || null,
           serial_number: payload.serial_number || null,
           notas: payload.notas || null,
           requer_contato_cliente: payload.requer_contato_cliente ? 1 : 0,
@@ -277,6 +280,15 @@ export default function TicketForm({ ticket, columns, onCreated, onClose }) {
               <label>Código de rastreio</label>
               <input value={form.codigo_rastreio} onChange={set("codigo_rastreio")} />
             </div>
+            <div>
+              <label>Ticket de suporte (Bambu Lab / importadora)</label>
+              <input value={form.ticket_suporte_externo}
+                     onChange={set("ticket_suporte_externo")}
+                     placeholder="Nº do protocolo externo" />
+            </div>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
             <div>
               <label>Número de série (SN)</label>
               <input value={form.serial_number} onChange={set("serial_number")}

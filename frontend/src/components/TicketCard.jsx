@@ -105,6 +105,11 @@ export default function TicketCard({ ticket, column, onOpen }) {
             👤 {ticket.responsavel_nome || ticket.responsavel_username}
           </div>
         )}
+        {ticket.ticket_suporte_externo && (
+          <div style={{ fontSize: 11, color: "var(--text-tertiary)", marginTop: 2 }}>
+            🎫 Suporte: {ticket.ticket_suporte_externo}
+          </div>
+        )}
         {!column.is_done && g.dias != null && g.faixa === "normal" && (
           <div style={{ fontSize: 11, color: "var(--text-tertiary)", marginTop: 2 }}>
             🗓 {g.dias} {g.dias === 1 ? "dia" : "dias"} desde a abertura

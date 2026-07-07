@@ -19,7 +19,8 @@ def list_tickets(db: Session = Depends(get_db)):
     # Devolve dados achatados (com marca e modelo) que o card do front consome.
     rows = db.execute(text("""
         SELECT t.id, t.codigo_interno, t.titulo, t.problema, t.origem,
-               t.numero_nf, t.codigo_rastreio, t.notas, t.serial_number,
+               t.numero_nf, t.codigo_rastreio, t.ticket_suporte_externo,
+               t.notas, t.serial_number,
                t.requer_contato_cliente, t.retorno_horas, t.retorno_definido_em,
                t.printer_model_id, t.quantidade, t.custo_unitario,
                t.supplier_id, t.defect_type_id, t.responsavel_id,

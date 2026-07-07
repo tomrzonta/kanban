@@ -81,6 +81,7 @@ class TicketIn(BaseModel):
     notas: str | None = None
     origem: OrigemReclamacao
     codigo_rastreio: str | None = None
+    ticket_suporte_externo: str | None = None
     printer_model_id: int
     serial_number: str | None = None
     quantidade: int = 1
@@ -100,6 +101,7 @@ class TicketUpdate(BaseModel):
     numero_nf: str | None = None
     notas: str | None = None
     codigo_rastreio: str | None = None
+    ticket_suporte_externo: str | None = None
     serial_number: str | None = None
     quantidade: int | None = None
     requer_contato_cliente: int | None = None

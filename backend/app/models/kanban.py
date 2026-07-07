@@ -100,6 +100,8 @@ class Ticket(Base):
     notas = Column(Text, nullable=True)             # rich text do atendimento
     origem = Column(SAEnum(OrigemReclamacao), nullable=False)
     codigo_rastreio = Column(String(120), nullable=True)
+    # Nº do ticket de suporte da Bambu Lab / importadora (protocolo externo).
+    ticket_suporte_externo = Column(String(120), nullable=True)
 
     # --- Interação com o cliente ---
     requer_contato_cliente = Column(Integer, default=0)  # 0/1 flag de sinalização

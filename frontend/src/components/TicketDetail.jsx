@@ -246,6 +246,7 @@ export default function TicketDetail({ ticket, columns, onClose, onMoved, onEdit
           <Item label="Origem" value={origem} />
           <Item label="Nota fiscal" value={ticket.numero_nf} />
           <Item label="Rastreio" value={ticket.codigo_rastreio} />
+          <Item label="Ticket suporte (Bambu/importadora)" value={ticket.ticket_suporte_externo} />
           <Item label="Etapa" value={colunaAtual?.name} />
           <Item label="Precisa contato"
                 value={c.precisaContato
