@@ -25,6 +25,8 @@ export default function Recebimentos() {
     numero_nf: "", quantidade: 1, condicao: "", observacao: "",
   };
   const [form, setForm] = useState(vazio);
+  const [fotos, setFotos] = useState([]);          // fotos de unboxing a anexar
+  const [enviandoFotos, setEnviandoFotos] = useState(false);
 
   const carregar = useCallback(() => {
     api.listRecebimentos().then(setItens);
@@ -103,21 +105,39 @@ export default function Recebimentos() {
     if (!form.ticket_id) { setErro("Selecione o ticket vinculado."); return; }
     if (!form.condicao) { setErro("Selecione a condição do item."); return; }
     try {
+      const ticketId = form.ticket_id;
       const r = await api.createRecebimento({
         ...form,
         quantidade: Number(form.quantidade),
         numero_nf: form.numero_nf || null,
         observacao: form.observacao || null,
       });
+
+      // Sobe as fotos de unboxing como anexos do ticket (se houver).
+      let fotosMsg = "";
+      if (fotos.length > 0) {
+        setEnviandoFotos(true);
+        let ok = 0, falhas = 0;
+        for (const f of fotos) {
+          try { await api.uploadAttachment(ticketId, f); ok++; }
+          catch { falhas++; }
+        }
+        setEnviandoFotos(false);
+        fotosMsg = ` ${ok} foto(s) anexada(s)`
+          + (falhas ? `, ${falhas} falharam` : "") + ".";
+      }
+
       setForm(vazio);
+      setFotos([]);
       setTicketSel(null);
       setBuscaTicket("");
       carregar();
       // Feedback: avisa se moveu o ticket ou se faltou marcar a coluna.
-      if (r.aviso) setMsg(r.aviso);
-      else if (r.moveu_ticket) setMsg(`Recebimento registrado. Ticket movido para "${r.coluna_destino}".`);
-      else setMsg("Recebimento registrado.");
+      if (r.aviso) setMsg(r.aviso + fotosMsg);
+      else if (r.moveu_ticket) setMsg(`Recebimento registrado. Ticket movido para "${r.coluna_destino}".` + fotosMsg);
+      else setMsg("Recebimento registrado." + fotosMsg);
     } catch (e) {
+      setEnviandoFotos(false);
       setErro(String(e.message || e).replace(/^API \d+:\s*/, ""));
     }
   }
@@ -217,13 +237,42 @@ export default function Recebimentos() {
             <textarea rows={2} value={form.observacao} onChange={set("observacao")}
                       style={{ width: "100%", resize: "vertical" }} />
           </div>
+
+          <div style={{ gridColumn: "1 / -1" }}>
+            <label>Fotos do unboxing (opcional)</label>
+            <input type="file" accept="image/*" multiple
+                   onChange={(e) => setFotos([...fotos, ...Array.from(e.target.files)])}
+                   style={{ display: "block", marginTop: 4 }} />
+            <div style={{ fontSize: 12, color: "var(--text-tertiary)", marginTop: 4 }}>
+              Registre como o equipamento chegou. As fotos ficam anexadas ao ticket.
+            </div>
+            {fotos.length > 0 && (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
+                {fotos.map((f, i) => (
+                  <span key={i} style={{ fontSize: 12, background: "var(--bg)",
+                                         borderRadius: 6, padding: "3px 8px",
+                                         display: "inline-flex", alignItems: "center", gap: 6 }}>
+                    🖼 {f.name}
+                    <button type="button"
+                            onClick={() => setFotos(fotos.filter((_, j) => j !== i))}
+                            style={{ padding: "0 4px", color: "var(--red)",
+                                     background: "none", border: "none", cursor: "pointer" }}>
+                      ✕
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
 
         {erro && <div style={{ color: "var(--red)", fontSize: 13, marginTop: 12 }}>{erro}</div>}
         {msg && <div style={{ color: "var(--accent)", fontSize: 13, marginTop: 12 }}>{msg}</div>}
 
         <div style={{ marginTop: 16 }}>
-          <button className="primary" onClick={registrar}>+ Registrar recebimento</button>
+          <button className="primary" onClick={registrar} disabled={enviandoFotos}>
+            {enviandoFotos ? "Enviando fotos…" : "+ Registrar recebimento"}
+          </button>
         </div>
       </section>
 
