@@ -20,7 +20,7 @@ def list_tickets(db: Session = Depends(get_db)):
     rows = db.execute(text("""
         SELECT t.id, t.codigo_interno, t.titulo, t.problema, t.origem,
                t.numero_nf, t.codigo_rastreio, t.ticket_suporte_externo,
-               t.notas, t.serial_number,
+               t.faixa_prazo, t.notas, t.serial_number,
                t.requer_contato_cliente, t.retorno_horas, t.retorno_definido_em,
                t.printer_model_id, t.quantidade, t.custo_unitario,
                t.supplier_id, t.defect_type_id, t.responsavel_id,
@@ -209,6 +209,9 @@ def registrar_contato(ticket_id: str,
     registrar_evento(db, t.id, models.TIPO_CONTATO,
                      "Contato com o cliente registrado.",
                      autor_id=user.id)
+    registrar_auditoria(db, user, "editar", "ticket",
+                        f"Registrou contato com o cliente no ticket "
+                        f"{t.codigo_interno or t.id}.")
     db.commit()
     db.refresh(t)
     return t

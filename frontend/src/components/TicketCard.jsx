@@ -3,6 +3,9 @@ import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { slaColor, slaStatus, contatoInfo, formatVencimento, garantiaInfo, GARANTIA_COLORS } from "../hooks/useSla";
 
+// Rótulos curtos das faixas de prazo (exibidos no card).
+const FAIXA_LABEL = { "1_7": "1-7 dias", "8_90": "8-90 dias", "91_mais": "91+ dias" };
+
 const STATUS_BADGE = {
   risco: { txt: "SLA em risco", bg: "#fdf0d5", fg: "#854f0b" },
   estourado: { txt: "SLA estourado", bg: "#fceaea", fg: "#a32d2d" },
@@ -108,6 +111,17 @@ export default function TicketCard({ ticket, column, onOpen }) {
         {ticket.ticket_suporte_externo && (
           <div style={{ fontSize: 11, color: "var(--text-tertiary)", marginTop: 2 }}>
             🎫 Suporte: {ticket.ticket_suporte_externo}
+          </div>
+        )}
+        {ticket.faixa_prazo && FAIXA_LABEL[ticket.faixa_prazo] && (
+          <div style={{ marginTop: 6 }}>
+            <span style={{ fontSize: 11, fontWeight: 600,
+                           background: "var(--accent-soft)", color: "var(--accent)",
+                           border: "1px solid var(--accent)",
+                           borderRadius: 10, padding: "2px 10px",
+                           display: "inline-block" }}>
+              📅 {FAIXA_LABEL[ticket.faixa_prazo]}
+            </span>
           </div>
         )}
         {!column.is_done && g.dias != null && g.faixa === "normal" && (

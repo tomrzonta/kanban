@@ -300,6 +300,19 @@ export const api = {
   // Comparação temporal (mês atual vs. anterior + série mensal).
   comparativo: () => request("/api/analytics/comparativo"),
 
+  // Gastos por ticket e categorias de gasto
+  listCategoriasGasto: () => request("/api/categorias-gasto"),
+  createCategoriaGasto: (data) =>
+    request("/api/categorias-gasto", { method: "POST", body: JSON.stringify(data) }),
+  updateCategoriaGasto: (id, data) =>
+    request(`/api/categorias-gasto/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+  deleteCategoriaGasto: (id) =>
+    request(`/api/categorias-gasto/${id}`, { method: "DELETE" }),
+  listGastos: (ticketId) => request(`/api/tickets/${ticketId}/gastos`),
+  createGasto: (ticketId, data) =>
+    request(`/api/tickets/${ticketId}/gastos`, { method: "POST", body: JSON.stringify(data) }),
+  deleteGasto: (id) => request(`/api/gastos/${id}`, { method: "DELETE" }),
+
   // Relatórios
   mttr: () => request("/api/reports/mttr"),
   volume: () => request("/api/reports/volume"),

@@ -13,6 +13,15 @@ const ORIGENS = [
   "Telefone",
 ];
 
+// Faixas de prazo do contato do cliente (janelas da garantia). O rótulo curto
+// vai no card; o descritivo ajuda a escolher no formulário.
+const FAIXAS_PRAZO = [
+  { v: "1_7", curto: "1-7 dias", desc: "1 a 7 dias (troca imediata / arrependimento)" },
+  { v: "8_90", curto: "8-90 dias", desc: "8 a 90 dias (garantia intermediada por nós)" },
+  { v: "91_mais", curto: "91+ dias", desc: "91 dias ou mais (acompanhamento; direto ao fabricante)" },
+];
+export const FAIXA_CURTA = (v) => FAIXAS_PRAZO.find((f) => f.v === v)?.curto || null;
+
 export default function TicketForm({ ticket, columns, onCreated, onClose }) {
   const editando = !!ticket;
 
@@ -38,6 +47,7 @@ export default function TicketForm({ ticket, columns, onCreated, onClose }) {
     quantidade: ticket?.quantidade || 1,
     codigo_rastreio: ticket?.codigo_rastreio || "",
     ticket_suporte_externo: ticket?.ticket_suporte_externo || "",
+    faixa_prazo: ticket?.faixa_prazo || "",
     serial_number: ticket?.serial_number || "",
     requer_contato_cliente: ticket?.requer_contato_cliente || 0,
     retorno_horas: ticket?.retorno_horas || "",
@@ -136,6 +146,7 @@ export default function TicketForm({ ticket, columns, onCreated, onClose }) {
           numero_nf: form.numero_nf || null,
           codigo_rastreio: form.codigo_rastreio || null,
           ticket_suporte_externo: form.ticket_suporte_externo || null,
+          faixa_prazo: form.faixa_prazo || null,
           serial_number: form.serial_number || null,
           notas: form.notas || null,
           quantidade: Number(form.quantidade),
@@ -158,6 +169,7 @@ export default function TicketForm({ ticket, columns, onCreated, onClose }) {
           numero_nf: payload.numero_nf || null,
           codigo_rastreio: payload.codigo_rastreio || null,
           ticket_suporte_externo: payload.ticket_suporte_externo || null,
+          faixa_prazo: payload.faixa_prazo || null,
           serial_number: payload.serial_number || null,
           notas: payload.notas || null,
           requer_contato_cliente: payload.requer_contato_cliente ? 1 : 0,
@@ -273,6 +285,16 @@ export default function TicketForm({ ticket, columns, onCreated, onClose }) {
                 {ORIGENS.map((o) => <option key={o} value={o}>{o}</option>)}
               </select>
             </div>
+          </div>
+
+          <div>
+            <label>Faixa de prazo do contato</label>
+            <select value={form.faixa_prazo} onChange={set("faixa_prazo")}>
+              <option value="">Não definida</option>
+              {FAIXAS_PRAZO.map((f) => (
+                <option key={f.v} value={f.v}>{f.desc}</option>
+              ))}
+            </select>
           </div>
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>

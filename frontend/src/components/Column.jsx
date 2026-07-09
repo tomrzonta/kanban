@@ -24,7 +24,7 @@ function corDaColuna(column) {
 
 // Coluna do Kanban. Altura cheia, título fixo, cards roláveis na vertical.
 // SortableContext habilita a reordenação dos cards dentro desta coluna.
-export default function Column({ column, tickets, onOpenTicket }) {
+export default function Column({ column, tickets, onOpenTicket, alertas }) {
   const { setNodeRef, isOver } = useDroppable({
     id: `col-${column.id}`,
     data: { columnId: column.id, isColumn: true },
@@ -46,6 +46,14 @@ export default function Column({ column, tickets, onOpenTicket }) {
               title={column.name}>
           {column.name}
         </span>
+        {alertas && alertas.vencido > 0 && (
+          <span title={`${alertas.vencido} com SLA vencido`}
+                style={{ fontSize: 11, fontWeight: 700, background: "#e03e3e",
+                         color: "#fff", borderRadius: 10, padding: "1px 7px",
+                         flexShrink: 0 }}>
+            ⏰ {alertas.vencido}
+          </span>
+        )}
         <span style={{ fontSize: 12, fontWeight: 600,
                        background: "rgba(255,255,255,0.25)", borderRadius: 10,
                        padding: "1px 8px", flexShrink: 0 }}>

@@ -9,6 +9,7 @@ import TicketForm from "./TicketForm";
 import TicketDetail from "./TicketDetail";
 import ColumnManager from "./ColumnManager";
 import { useToast } from "./Toast";
+import { slaStatus } from "../hooks/useSla";
 
 // Verifica se o ticket bate com o texto buscado (em vários campos).
 // Busca vazia mostra tudo. Comparação sem distinção de maiúsc/minúsc.
@@ -30,7 +31,7 @@ function visivelNoQuadro(t, column) {
   return horas < HORAS_VISIVEL_CONCLUIDO;
 }
 
-export default function KanbanBoard({ isAdmin }) {
+export default function KanbanBoard({ isAdmin, user }) {
   const [columns, setColumns] = useState([]);
   const [tickets, setTickets] = useState([]);
   const [showForm, setShowForm] = useState(false);    // criar ticket
@@ -38,7 +39,39 @@ export default function KanbanBoard({ isAdmin }) {
   const [selected, setSelected] = useState(null);     // ticket no modal de detalhe
   const [manageCols, setManageCols] = useState(false); // gerenciar colunas
   const [busca, setBusca] = useState("");               // texto de busca no quadro
+  const [filtroAlerta, setFiltroAlerta] = useState(null); // null | "estourado" | "risco"
+  // "Só os meus": mostra apenas os tickets do usuário logado. Preferência
+  // salva por usuário no localStorage, para persistir entre sessões.
+  const CHAVE_MEUS = `kanban_so_meus_${user?.id || "x"}`;
+  const [soMeus, setSoMeus] = useState(() => {
+    try { return localStorage.getItem(CHAVE_MEUS) === "1"; } catch { return false; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem(CHAVE_MEUS, soMeus ? "1" : "0"); } catch { /* ignora */ }
+  }, [soMeus, CHAVE_MEUS]);
+
+  // Aplica o filtro "só os meus" a uma lista de tickets.
+  const meusFiltro = (t) => !soMeus || t.responsavel_id === user?.id;
   const toast = useToast();
+
+  // Mapa coluna->{vencido, risco}: conta os tickets visíveis por severidade de
+  // SLA, para os contadores no cabeçalho e no resumo do topo. Só colunas de
+  // trabalho (não concluídas/recebidas) fazem sentido para SLA.
+  const alertasPorColuna = {};
+  let totVencido = 0, totRisco = 0;
+  for (const col of columns) {
+    if (col.is_done) continue;
+    let vencido = 0, risco = 0;
+    for (const t of tickets) {
+      if (t.column_id !== col.id) continue;
+      if (!visivelNoQuadro(t, col)) continue;
+      if (!meusFiltro(t)) continue;
+      const s = slaStatus(t, col);
+      if (s === "estourado") { vencido++; totVencido++; }
+      else if (s === "risco") { risco++; totRisco++; }
+    }
+    alertasPorColuna[col.id] = { vencido, risco };
+  }
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
@@ -145,10 +178,44 @@ export default function KanbanBoard({ isAdmin }) {
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
       <div style={{ display: "flex", justifyContent: "space-between", gap: 8,
                     marginBottom: 16, flexShrink: 0, alignItems: "center" }}>
-        <input placeholder="🔍 Buscar por código, título, SN, NF, fabricante, modelo ou responsável…"
-               value={busca} onChange={(e) => setBusca(e.target.value)}
-               style={{ maxWidth: 420 }} />
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flex: 1 }}>
+          <input placeholder="🔍 Buscar por código, título, SN, NF, fabricante, modelo ou responsável…"
+                 value={busca} onChange={(e) => setBusca(e.target.value)}
+                 style={{ maxWidth: 420 }} />
+          <button onClick={() => setSoMeus((v) => !v)}
+                  title="Mostrar apenas os tickets sob minha responsabilidade"
+                  style={{ background: soMeus ? "var(--accent)" : "var(--btn-bg)",
+                           color: soMeus ? "#fff" : "var(--text)",
+                           border: `1px solid ${soMeus ? "var(--accent)" : "var(--btn-border)"}`,
+                           whiteSpace: "nowrap" }}>
+            {soMeus ? "👤 Só os meus" : "👥 Todos"}
+          </button>
+        </div>
         <div style={{ display: "flex", gap: 8 }}>
+          {(totVencido > 0 || totRisco > 0) && (
+            <div style={{ display: "flex", gap: 6, alignItems: "center", marginRight: 4 }}>
+              {totVencido > 0 && (
+                <button onClick={() => setFiltroAlerta(filtroAlerta === "estourado" ? null : "estourado")}
+                        title="Mostrar só os tickets com SLA vencido"
+                        style={{ background: filtroAlerta === "estourado" ? "#e03e3e" : "var(--surface)",
+                                 color: filtroAlerta === "estourado" ? "#fff" : "#e03e3e",
+                                 border: "1px solid #e03e3e", borderRadius: 16,
+                                 padding: "4px 12px", fontSize: 12, fontWeight: 600 }}>
+                  ⏰ {totVencido} vencido{totVencido > 1 ? "s" : ""}
+                </button>
+              )}
+              {totRisco > 0 && (
+                <button onClick={() => setFiltroAlerta(filtroAlerta === "risco" ? null : "risco")}
+                        title="Mostrar só os tickets com prazo próximo do fim"
+                        style={{ background: filtroAlerta === "risco" ? "#946800" : "var(--surface)",
+                                 color: filtroAlerta === "risco" ? "#fff" : "#946800",
+                                 border: "1px solid #f5a623", borderRadius: 16,
+                                 padding: "4px 12px", fontSize: 12, fontWeight: 600 }}>
+                  ⚠ {totRisco} em risco
+                </button>
+              )}
+            </div>
+          )}
           {isAdmin && (
             <button onClick={() => setManageCols(true)}>⚙ Gerenciar colunas</button>
           )}
@@ -169,10 +236,13 @@ export default function KanbanBoard({ isAdmin }) {
             <div key={col.id} style={{ flex: "0 0 280px", maxWidth: 280,
                                        display: "flex" }}>
               <Column column={col}
+                      alertas={alertasPorColuna[col.id]}
                       tickets={tickets
                         .filter((t) => t.column_id === col.id)
                         .filter((t) => visivelNoQuadro(t, col))
+                        .filter(meusFiltro)
                         .filter((t) => filtraBusca(t, busca))
+                        .filter((t) => !filtroAlerta || slaStatus(t, col) === filtroAlerta)
                         .sort((a, b) => a.order_index - b.order_index)}
                       onOpenTicket={setSelected} />
             </div>

@@ -207,6 +207,9 @@ export default function Dashboard() {
             <Card title="Custo por desfecho (R$)">
               <BarrasCusto data={data.custo_por_desfecho} />
             </Card>
+            <Card title="Gasto por categoria (R$)">
+              <BarrasGasto data={data.gasto_por_categoria} />
+            </Card>
             <Card title="Tickets por origem">
               <Pizza data={data.por_origem} />
             </Card>
@@ -533,6 +536,35 @@ function Card({ title, children }) {
 // Gráficos com tamanho fixo (sem ResponsiveContainer) — renderização garantida.
 // Barras de custo (R$) por categoria, com o valor e a quantidade de casos no
 // tooltip. Usado no gráfico de custo por desfecho.
+// Barras de gasto por categoria, com total, quantidade e média no tooltip.
+function BarrasGasto({ data, fill = "#c2410c" }) {
+  if (!data || data.length === 0) return <Vazio />;
+  const fmtMoeda = (v) => `R$ ${Number(v).toLocaleString("pt-BR", { maximumFractionDigits: 0 })}`;
+  const tip = ({ active, payload, label }) => {
+    if (!active || !payload || !payload.length) return null;
+    const d = payload[0].payload;
+    return (
+      <div style={{ background: "var(--surface)", border: "1px solid var(--border)",
+                    borderRadius: 6, padding: "8px 10px", fontSize: 12 }}>
+        <div style={{ fontWeight: 600, marginBottom: 2 }}>{label}</div>
+        <div>Total: {fmtMoeda(d.total)}</div>
+        <div style={{ color: "var(--text-secondary)" }}>
+          {d.qtd} {d.qtd === 1 ? "lançamento" : "lançamentos"} · média {fmtMoeda(d.media)}
+        </div>
+      </div>
+    );
+  };
+  return (
+    <BarChart width={CHART_W} height={CHART_H} data={data}>
+      <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+      <XAxis dataKey="nome" tick={{ fontSize: 11 }} />
+      <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `R$${(v/1000).toFixed(0)}k`} />
+      <Tooltip content={tip} />
+      <Bar dataKey="total" fill={fill} radius={[4, 4, 0, 0]} />
+    </BarChart>
+  );
+}
+
 function BarrasCusto({ data, fill = "#e03e3e" }) {
   if (!data || data.length === 0) return <Vazio />;
   const fmtMoeda = (v) => `R$ ${Number(v).toLocaleString("pt-BR", { maximumFractionDigits: 0 })}`;

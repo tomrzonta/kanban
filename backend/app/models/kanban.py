@@ -102,6 +102,9 @@ class Ticket(Base):
     codigo_rastreio = Column(String(120), nullable=True)
     # Nº do ticket de suporte da Bambu Lab / importadora (protocolo externo).
     ticket_suporte_externo = Column(String(120), nullable=True)
+    # Faixa de prazo do contato do cliente: '1_7', '8_90' ou '91_mais'.
+    # Define o tipo de tratativa (tratado por nós vs. apenas acompanhado).
+    faixa_prazo = Column(String(10), nullable=True)
 
     # --- Interação com o cliente ---
     requer_contato_cliente = Column(Integer, default=0)  # 0/1 flag de sinalização

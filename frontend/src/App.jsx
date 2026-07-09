@@ -111,7 +111,7 @@ export default function App() {
       </header>
 
       <div className={`app-content${view !== "kanban" ? " scrollable" : ""}`}>
-        {view === "kanban" && <KanbanBoard isAdmin={isAdmin} />}
+        {view === "kanban" && <KanbanBoard isAdmin={isAdmin} user={user} />}
         {view === "recebimentos" && <Recebimentos />}
         {view === "compras" && <Compras />}
         {view === "concluidos" && <Concluidos isAdmin={isAdmin} />}

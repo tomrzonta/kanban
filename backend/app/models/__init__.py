@@ -16,6 +16,7 @@ from app.models.ticket_evento import (
 from app.models.audit import AuditLog
 from app.models.kb import KbArtigo
 from app.models.compra import Compra
+from app.models.gasto import CategoriaGasto, GastoTicket
 
 __all__ = [
     "PrinterBrand", "PrinterModel", "Supplier", "DefectType", "Desfecho",
@@ -24,4 +25,5 @@ __all__ = [
     "OrigemReclamacao", "ticket_tags", "User", "Recebimento", "CONDICOES",
     "TicketEvento", "TIPO_COMENTARIO", "TIPO_MOVIMENTO", "TIPO_RECEBIMENTO",
     "TIPO_DESFECHO", "TIPO_CONTATO", "AuditLog", "KbArtigo", "Compra",
+    "CategoriaGasto", "GastoTicket",
 ]

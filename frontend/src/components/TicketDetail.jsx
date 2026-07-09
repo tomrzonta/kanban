@@ -22,18 +22,48 @@ export default function TicketDetail({ ticket, columns, onClose, onMoved, onEdit
   // Desfecho do ticket (pode ser marcado a qualquer momento).
   const [desfechos, setDesfechos] = useState([]);
   const [desfechoId, setDesfechoId] = useState(ticket.desfecho_id || "");
-  const [prejuizoReal, setPrejuizoReal] = useState(
-    ticket.prejuizo_real != null ? String(ticket.prejuizo_real) : "");
   const [erroMover, setErroMover] = useState(null);
 
   // Timeline de eventos + comentário.
   const [eventos, setEventos] = useState([]);
   const [comentario, setComentario] = useState("");
 
+  // Gastos discriminados do ticket (frete reverso, reenvio, peça...).
+  const [gastos, setGastos] = useState([]);
+  const [totalGastos, setTotalGastos] = useState(0);
+  const [categoriasGasto, setCategoriasGasto] = useState([]);
+  const [novoGasto, setNovoGasto] = useState({ categoria_id: "", valor: "", descricao: "" });
+
+  const carregarGastos = () =>
+    api.listGastos(ticket.id).then((r) => {
+      setGastos(r.gastos); setTotalGastos(r.total);
+    }).catch(() => {});
+
   useEffect(() => {
     api.listDesfechos().then(setDesfechos).catch(() => setDesfechos([]));
     api.listEventos(ticket.id).then(setEventos).catch(() => setEventos([]));
+    api.listCategoriasGasto().then(setCategoriasGasto).catch(() => setCategoriasGasto([]));
+    carregarGastos();
   }, [ticket.id]);
+
+  async function adicionarGasto() {
+    if (!novoGasto.valor || Number(novoGasto.valor) <= 0) {
+      alert("Informe um valor de gasto válido."); return;
+    }
+    try {
+      await api.createGasto(ticket.id, {
+        categoria_id: novoGasto.categoria_id ? Number(novoGasto.categoria_id) : null,
+        valor: Number(novoGasto.valor),
+        descricao: novoGasto.descricao || null,
+      });
+      setNovoGasto({ categoria_id: "", valor: "", descricao: "" });
+      carregarGastos();
+    } catch (e) { alert(String(e.message || e).replace(/^API \d+:\s*/, "")); }
+  }
+  async function removerGasto(id) {
+    try { await api.deleteGasto(id); carregarGastos(); }
+    catch (e) { alert(String(e.message || e).replace(/^API \d+:\s*/, "")); }
+  }
 
   async function enviarComentario() {
     if (!comentario.trim()) return;
@@ -65,7 +95,8 @@ export default function TicketDetail({ ticket, columns, onClose, onMoved, onEdit
     try {
       await api.updateTicket(ticket.id, {
         desfecho_id: desfechoId ? Number(desfechoId) : null,
-        prejuizo_real: ehParcial && prejuizoReal ? Number(prejuizoReal) : null,
+        // O valor do parcial agora vem da soma dos gastos lançados, não de um
+        // campo manual. prejuizo_real fica como fallback de tickets antigos.
       });
       onMoved();
     } catch (e) {
@@ -212,19 +243,71 @@ export default function TicketDetail({ ticket, columns, onClose, onMoved, onEdit
                 <option key={d.id} value={d.id}>{d.name}</option>
               ))}
             </select>
-            {ehParcial && (
-              <input type="number" step="0.01" min="0" placeholder="Valor perdido R$"
-                     value={prejuizoReal} style={{ width: 150 }}
-                     onChange={(e) => setPrejuizoReal(e.target.value)} />
-            )}
             <button className="primary" onClick={salvarDesfecho}>Salvar desfecho</button>
           </div>
           {desfechoSel && (
             <div style={{ fontSize: 12, color: "var(--text-tertiary)", marginTop: 6 }}>
               {desfechoSel.impacto === "sem_prejuizo" && "Este desfecho não conta prejuízo nas análises."}
               {desfechoSel.impacto === "total" && "Conta o valor cheio (custo × quantidade) como prejuízo."}
-              {desfechoSel.impacto === "parcial" && "Conta como prejuízo o valor informado ao lado."}
+              {desfechoSel.impacto === "parcial" && "O prejuízo é a soma dos gastos lançados abaixo."}
               {desfechoSel.impacto === "informativo" && "Caso informativo: fica fora dos cálculos de dinheiro (conta como resolvido, sem prejuízo nem economia)."}
+            </div>
+          )}
+
+          {/* Gastos discriminados: só fazem sentido no caso parcial. */}
+          {ehParcial && (
+            <div style={{ marginTop: 12, background: "var(--bg)",
+                          borderRadius: "var(--radius)", padding: 12 }}>
+              <div style={{ display: "flex", alignItems: "center", marginBottom: 8 }}>
+                <span style={{ fontWeight: 600, fontSize: 13, flex: 1 }}>
+                  Gastos do ticket
+                </span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: "var(--accent)" }}>
+                  Total: R$ {totalGastos.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                </span>
+              </div>
+
+              {gastos.length > 0 && (
+                <div style={{ display: "grid", gap: 4, marginBottom: 8 }}>
+                  {gastos.map((g) => (
+                    <div key={g.id} style={{ display: "flex", alignItems: "center",
+                                             gap: 8, fontSize: 13,
+                                             padding: "4px 0",
+                                             borderBottom: "1px solid var(--border)" }}>
+                      <span style={{ flex: 1 }}>
+                        {g.categoria_nome || "Sem categoria"}
+                        {g.descricao && <span style={{ color: "var(--text-tertiary)" }}> · {g.descricao}</span>}
+                      </span>
+                      <span style={{ fontWeight: 600 }}>
+                        R$ {Number(g.valor).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                      </span>
+                      <button onClick={() => removerGasto(g.id)}
+                              style={{ padding: "0 6px", color: "var(--red)" }}>✕</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Adicionar gasto */}
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                <select value={novoGasto.categoria_id}
+                        onChange={(e) => setNovoGasto({ ...novoGasto, categoria_id: e.target.value })}
+                        style={{ flex: "1 1 130px", minWidth: 0 }}>
+                  <option value="">Categoria…</option>
+                  {categoriasGasto.filter((c) => c.active).map((c) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+                <input type="number" step="0.01" min="0" placeholder="Valor R$"
+                       value={novoGasto.valor}
+                       onChange={(e) => setNovoGasto({ ...novoGasto, valor: e.target.value })}
+                       style={{ flex: "0 1 110px" }} />
+                <input placeholder="Descrição (opcional)"
+                       value={novoGasto.descricao}
+                       onChange={(e) => setNovoGasto({ ...novoGasto, descricao: e.target.value })}
+                       style={{ flex: "1 1 140px", minWidth: 0 }} />
+                <button onClick={adicionarGasto}>+ Adicionar</button>
+              </div>
             </div>
           )}
         </div>
@@ -247,6 +330,7 @@ export default function TicketDetail({ ticket, columns, onClose, onMoved, onEdit
           <Item label="Nota fiscal" value={ticket.numero_nf} />
           <Item label="Rastreio" value={ticket.codigo_rastreio} />
           <Item label="Ticket suporte (Bambu/importadora)" value={ticket.ticket_suporte_externo} />
+          <Item label="Faixa de prazo" value={{"1_7":"1-7 dias","8_90":"8-90 dias","91_mais":"91+ dias"}[ticket.faixa_prazo]} />
           <Item label="Etapa" value={colunaAtual?.name} />
           <Item label="Precisa contato"
                 value={c.precisaContato

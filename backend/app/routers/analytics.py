@@ -29,7 +29,9 @@ PREJUIZO_EFETIVO = """
     CASE
         WHEN dsf.impacto = 'sem_prejuizo' THEN 0
         WHEN dsf.impacto = 'informativo' THEN 0
-        WHEN dsf.impacto = 'parcial' THEN COALESCE(t.prejuizo_real, 0)
+        WHEN dsf.impacto = 'parcial' THEN COALESCE(
+            (SELECT SUM(g.valor) FROM gastos_ticket g WHERE g.ticket_id = t.id),
+            t.prejuizo_real, 0)
         ELSE t.custo_unitario * t.quantidade
     END
 """
@@ -186,6 +188,27 @@ def dashboard(f: dict = Depends(filtros), db: Session = Depends(get_db)):
         [d for d in por_desfecho if (d.get("prejuizo") or 0) > 0],
         key=lambda d: d["prejuizo"], reverse=True)
 
+    # Gasto por categoria: soma, quantidade de lançamentos e média por categoria.
+    # Respeita os mesmos filtros (via join com tickets). Só categorias com gasto.
+    gasto_rows = db.execute(text(f"""
+        SELECT COALESCE(cg.name, 'Sem categoria') AS nome,
+               SUM(g.valor) AS total,
+               COUNT(g.id) AS qtd
+        FROM gastos_ticket g
+        JOIN tickets t ON t.id = g.ticket_id
+        JOIN printer_models m ON m.id = t.printer_model_id
+        JOIN printer_brands b ON b.id = m.brand_id
+        LEFT JOIN categorias_gasto cg ON cg.id = g.categoria_id
+        {where}
+        GROUP BY COALESCE(cg.name, 'Sem categoria')
+        ORDER BY SUM(g.valor) DESC
+    """), params).mappings().all()
+    gasto_por_categoria = [
+        {"nome": r["nome"], "total": float(r["total"] or 0), "qtd": r["qtd"],
+         "media": round(float(r["total"] or 0) / r["qtd"], 2) if r["qtd"] else 0}
+        for r in gasto_rows
+    ]
+
     # --- Taxa de resolução: dos tickets COM desfecho, quanto foi resolvido sem
     # prejuízo vs. parcial vs. perda total. Fecha o ciclo dos desfechos. ---
     resolucao_rows = db.execute(text(f"""
@@ -316,6 +339,7 @@ def dashboard(f: dict = Depends(filtros), db: Session = Depends(get_db)):
         "por_responsavel": por_responsavel,
         "por_desfecho": por_desfecho,
         "custo_por_desfecho": custo_por_desfecho,
+        "gasto_por_categoria": gasto_por_categoria,
         "taxa_resolucao": taxa_resolucao,
         "por_coluna": por_coluna,
         "gargalos": gargalos,
