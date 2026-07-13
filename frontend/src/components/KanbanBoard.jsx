@@ -40,18 +40,35 @@ export default function KanbanBoard({ isAdmin, user }) {
   const [manageCols, setManageCols] = useState(false); // gerenciar colunas
   const [busca, setBusca] = useState("");               // texto de busca no quadro
   const [filtroAlerta, setFiltroAlerta] = useState(null); // null | "estourado" | "risco"
-  // "Só os meus": mostra apenas os tickets do usuário logado. Preferência
-  // salva por usuário no localStorage, para persistir entre sessões.
+  // Filtro de responsável no quadro:
+  //   "todos"  -> todos os tickets
+  //   "meus"   -> só os do usuário logado
+  //   "<id>"   -> só os de um usuário específico (apenas admin escolhe)
+  // Para não-admin, a preferência "meus" é salva entre sessões. A escolha de um
+  // usuário específico (admin) NÃO é salva — volta a "todos" ao recarregar.
   const CHAVE_MEUS = `kanban_so_meus_${user?.id || "x"}`;
-  const [soMeus, setSoMeus] = useState(() => {
-    try { return localStorage.getItem(CHAVE_MEUS) === "1"; } catch { return false; }
+  const [filtroResp, setFiltroResp] = useState(() => {
+    try { return localStorage.getItem(CHAVE_MEUS) === "1" ? "meus" : "todos"; }
+    catch { return "todos"; }
   });
+  // Salva só o estado "meus" vs. "não-meus" (não persiste id específico).
   useEffect(() => {
-    try { localStorage.setItem(CHAVE_MEUS, soMeus ? "1" : "0"); } catch { /* ignora */ }
-  }, [soMeus, CHAVE_MEUS]);
+    try { localStorage.setItem(CHAVE_MEUS, filtroResp === "meus" ? "1" : "0"); }
+    catch { /* ignora */ }
+  }, [filtroResp, CHAVE_MEUS]);
 
-  // Aplica o filtro "só os meus" a uma lista de tickets.
-  const meusFiltro = (t) => !soMeus || t.responsavel_id === user?.id;
+  // Usuários selecionáveis (para o dropdown do admin).
+  const [usuarios, setUsuarios] = useState([]);
+  useEffect(() => {
+    if (isAdmin) api.listSelectableUsers().then(setUsuarios).catch(() => {});
+  }, [isAdmin]);
+
+  // Aplica o filtro de responsável a um ticket.
+  const meusFiltro = (t) => {
+    if (filtroResp === "todos") return true;
+    if (filtroResp === "meus") return t.responsavel_id === user?.id;
+    return t.responsavel_id === Number(filtroResp); // id específico
+  };
   const toast = useToast();
 
   // Mapa coluna->{vencido, risco}: conta os tickets visíveis por severidade de
@@ -182,14 +199,30 @@ export default function KanbanBoard({ isAdmin, user }) {
           <input placeholder="🔍 Buscar por código, título, SN, NF, fabricante, modelo ou responsável…"
                  value={busca} onChange={(e) => setBusca(e.target.value)}
                  style={{ maxWidth: 420 }} />
-          <button onClick={() => setSoMeus((v) => !v)}
-                  title="Mostrar apenas os tickets sob minha responsabilidade"
-                  style={{ background: soMeus ? "var(--accent)" : "var(--btn-bg)",
-                           color: soMeus ? "#fff" : "var(--text)",
-                           border: `1px solid ${soMeus ? "var(--accent)" : "var(--btn-border)"}`,
-                           whiteSpace: "nowrap" }}>
-            {soMeus ? "👤 Só os meus" : "👥 Todos"}
-          </button>
+          {isAdmin ? (
+            <select value={filtroResp} onChange={(e) => setFiltroResp(e.target.value)}
+                    title="Filtrar o quadro por responsável"
+                    style={{ maxWidth: 220, whiteSpace: "nowrap" }}>
+              <option value="todos">👥 Todos os tickets</option>
+              <option value="meus">👤 Só os meus</option>
+              <optgroup label="Por responsável">
+                {usuarios.map((u) => (
+                  <option key={u.id} value={String(u.id)}>
+                    {u.nome || u.username}
+                  </option>
+                ))}
+              </optgroup>
+            </select>
+          ) : (
+            <button onClick={() => setFiltroResp(filtroResp === "meus" ? "todos" : "meus")}
+                    title="Mostrar apenas os tickets sob minha responsabilidade"
+                    style={{ background: filtroResp === "meus" ? "var(--accent)" : "var(--btn-bg)",
+                             color: filtroResp === "meus" ? "#fff" : "var(--text)",
+                             border: `1px solid ${filtroResp === "meus" ? "var(--accent)" : "var(--btn-border)"}`,
+                             whiteSpace: "nowrap" }}>
+              {filtroResp === "meus" ? "👤 Só os meus" : "👥 Todos"}
+            </button>
+          )}
         </div>
         <div style={{ display: "flex", gap: 8 }}>
           {(totVencido > 0 || totRisco > 0) && (

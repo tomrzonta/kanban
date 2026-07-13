@@ -117,7 +117,7 @@ export default function App() {
         {view === "concluidos" && <Concluidos isAdmin={isAdmin} />}
         {view === "dashboard" && <Dashboard />}
         {view === "diretoria" && isAdmin && <Diretoria />}
-        {view === "atendimento" && <Atendimento />}
+        {view === "atendimento" && <Atendimento isAdmin={isAdmin} />}
         {view === "catalog" && isAdmin && <Catalog />}
         {view === "users" && isAdmin && <Users currentUser={user} />}
         {view === "auditoria" && isAdmin && <Auditoria />}

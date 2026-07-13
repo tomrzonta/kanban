@@ -24,6 +24,12 @@ class KbArtigo(Base):
     favorito = Column(Integer, nullable=False, default=0)  # 0/1 — sobe ao topo
     problema = Column(Text, nullable=True)        # descrição do problema
     resolucao = Column(Text, nullable=True)       # como resolver
+    # Versão anterior (legado — não mais usado; mantido por retrocompat).
+    resolucao_anterior = Column(Text, nullable=True)
+    # Histórico de versões da resolução: lista de {texto, data}, uma por edição.
+    # Usado para grifar o que mudou nos últimos dias, com cada trecho tendo seu
+    # próprio prazo (comparamos a versão atual contra a de ~5 dias atrás).
+    resolucao_historico = Column(JSON, nullable=True)
     pitches = Column(JSON, nullable=False, default=list)  # lista de {titulo, texto}
     # Cópia em texto puro dos pitches (títulos + corpos), só para a busca
     # funcionar de forma portável entre Postgres e SQLite (o cast de JSON para
