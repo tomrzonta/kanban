@@ -3,6 +3,7 @@ import BrandCatalog from "./BrandCatalog";
 import SimpleEntityList from "../components/SimpleEntityList";
 import DesfechoList from "../components/DesfechoList";
 import CategoriaGastoList from "../components/CategoriaGastoList";
+import PecasCanibalizaveisList from "../components/PecasCanibalizaveisList";
 
 // Catálogo com subseções (abas internas). Cada aba gerencia uma entidade
 // padronizada usada nos tickets e na análise.
@@ -12,6 +13,7 @@ const SECTIONS = [
   { id: "defects", label: "Tipos de defeito" },
   { id: "desfechos", label: "Desfechos" },
   { id: "categorias-gasto", label: "Categorias de gasto" },
+  { id: "pecas-canibalizaveis", label: "Peças canibalizáveis" },
 ];
 
 export default function Catalog() {
@@ -45,6 +47,7 @@ export default function Catalog() {
       )}
       {section === "desfechos" && <DesfechoList />}
       {section === "categorias-gasto" && <CategoriaGastoList />}
+      {section === "pecas-canibalizaveis" && <PecasCanibalizaveisList />}
     </div>
   );
 }

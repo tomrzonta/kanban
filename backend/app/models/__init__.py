@@ -17,6 +17,8 @@ from app.models.audit import AuditLog
 from app.models.kb import KbArtigo
 from app.models.compra import Compra
 from app.models.gasto import CategoriaGasto, GastoTicket
+from app.models.retida import (EstadoRetida, ImpressoraRetida, RetidaHistorico,
+                                RetidaPeca, RetidaNota, PecaPadrao)
 
 __all__ = [
     "PrinterBrand", "PrinterModel", "Supplier", "DefectType", "Desfecho",
@@ -26,4 +28,6 @@ __all__ = [
     "TicketEvento", "TIPO_COMENTARIO", "TIPO_MOVIMENTO", "TIPO_RECEBIMENTO",
     "TIPO_DESFECHO", "TIPO_CONTATO", "AuditLog", "KbArtigo", "Compra",
     "CategoriaGasto", "GastoTicket",
+    "EstadoRetida", "ImpressoraRetida", "RetidaHistorico", "RetidaPeca",
+    "RetidaNota", "PecaPadrao",
 ]

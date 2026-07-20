@@ -9,6 +9,7 @@ import Diretoria from "./pages/Diretoria";
 import Concluidos from "./pages/Concluidos";
 import Recebimentos from "./pages/Recebimentos";
 import Compras from "./pages/Compras";
+import Retidas from "./pages/Retidas";
 import Catalog from "./pages/Catalog";
 import Users from "./pages/Users";
 import Auditoria from "./pages/Auditoria";
@@ -52,6 +53,7 @@ export default function App() {
     { id: "kanban", label: "Quadro" },
     { id: "recebimentos", label: "Recebimentos" },
     { id: "compras", label: "Compras" },
+    { id: "retidas", label: "Impressoras retidas" },
     { id: "concluidos", label: "Concluídos" },
     ...(isAdmin ? [{ id: "diretoria", label: "Diretoria" }] : []),
     { id: "dashboard", label: "Operacional" },
@@ -114,6 +116,7 @@ export default function App() {
         {view === "kanban" && <KanbanBoard isAdmin={isAdmin} user={user} />}
         {view === "recebimentos" && <Recebimentos />}
         {view === "compras" && <Compras />}
+        {view === "retidas" && <Retidas isAdmin={isAdmin} />}
         {view === "concluidos" && <Concluidos isAdmin={isAdmin} />}
         {view === "dashboard" && <Dashboard />}
         {view === "diretoria" && isAdmin && <Diretoria />}

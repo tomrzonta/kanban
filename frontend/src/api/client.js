@@ -126,6 +126,48 @@ export const api = {
     request("/api/compras/colar", { method: "POST", body: JSON.stringify({ linhas }) }),
   sincronizarCatalogoCompras: () =>
     request("/api/compras/sincronizar-catalogo", { method: "POST" }),
+
+  // Impressoras retidas
+  listEstadosRetida: () => request("/api/retidas/estados"),
+  createEstadoRetida: (data) =>
+    request("/api/retidas/estados", { method: "POST", body: JSON.stringify(data) }),
+  updateEstadoRetida: (id, data) =>
+    request(`/api/retidas/estados/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+  deleteEstadoRetida: (id) =>
+    request(`/api/retidas/estados/${id}`, { method: "DELETE" }),
+  listRetidas: ({ q, estadoId } = {}) => {
+    const p = new URLSearchParams();
+    if (q) p.set("q", q);
+    if (estadoId) p.set("estado_id", estadoId);
+    const qs = p.toString();
+    return request(`/api/retidas${qs ? `?${qs}` : ""}`);
+  },
+  dadosDoTicket: (ticketId) => request(`/api/retidas/de-ticket/${ticketId}`),
+  createRetida: (data) =>
+    request("/api/retidas", { method: "POST", body: JSON.stringify(data) }),
+  updateRetida: (id, data) =>
+    request(`/api/retidas/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+  deleteRetida: (id) => request(`/api/retidas/${id}`, { method: "DELETE" }),
+  mudarEstadoRetida: (id, data) =>
+    request(`/api/retidas/${id}/estado`, { method: "POST", body: JSON.stringify(data) }),
+  historicoRetida: (id) => request(`/api/retidas/${id}/historico`),
+  listPecasRetida: (id) => request(`/api/retidas/${id}/pecas`),
+  createPecaRetida: (id, data) =>
+    request(`/api/retidas/${id}/pecas`, { method: "POST", body: JSON.stringify(data) }),
+  deletePecaRetida: (pecaId) =>
+    request(`/api/retidas/pecas/${pecaId}`, { method: "DELETE" }),
+  // Notas (diário) da retida
+  listNotasRetida: (id) => request(`/api/retidas/${id}/notas`),
+  createNotaRetida: (id, texto) =>
+    request(`/api/retidas/${id}/notas`, { method: "POST", body: JSON.stringify({ texto }) }),
+  deleteNotaRetida: (notaId) =>
+    request(`/api/retidas/notas/${notaId}`, { method: "DELETE" }),
+  // Peças padrão (menu suspenso)
+  listPecasPadrao: () => request("/api/retidas/pecas-padrao"),
+  createPecaPadrao: (name) =>
+    request("/api/retidas/pecas-padrao", { method: "POST", body: JSON.stringify({ name, active: 1, ordem: 0 }) }),
+  deletePecaPadrao: (id) =>
+    request(`/api/retidas/pecas-padrao/${id}`, { method: "DELETE" }),
   updateCompra: (id, data) =>
     request(`/api/compras/${id}`, { method: "PUT", body: JSON.stringify(data) }),
   deleteCompra: (id) =>

@@ -12,7 +12,7 @@ from app.core.security import usuario_atual, requer_admin
 from app import models  # noqa: F401  (garante o registro dos modelos no metadata)
 from app.routers import (
     catalog, columns, tickets, reports, export, entities, analytics, auth,
-    attachments, recebimentos, eventos, auditoria, kb, compras, gastos,
+    attachments, recebimentos, eventos, auditoria, kb, compras, gastos, retidas,
 )
 
 # As tabelas são criadas/atualizadas por migrações Alembic (rodadas no startup
@@ -42,7 +42,7 @@ login_obrigatorio = [Depends(usuario_atual)]
 for r in (tickets.router, reports.router, export.router, analytics.router,
           catalog.router, columns.router, entities.router, attachments.router,
           recebimentos.router, eventos.router, auditoria.router, kb.router,
-          compras.router, gastos.router):
+          compras.router, gastos.router, retidas.router):
     app.include_router(r, dependencies=login_obrigatorio)
 
 

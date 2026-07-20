@@ -28,6 +28,17 @@ export default function TicketCard({ ticket, column, onOpen }) {
   const badge = STATUS_BADGE[status];
   const horas = Math.round((Date.now() - new Date(ticket.last_moved_at)) / 3.6e6);
 
+  // Alerta de logística: após 7 dias desde a abertura, se a análise remota não
+  // resolveu (impressora ainda não recebida) e o ticket não está concluído,
+  // sinaliza que é hora de solicitar o envio à sede — antes que o transporte
+  // coma o prazo legal de 30 dias.
+  const DIAS_SOLICITAR_ENVIO = 7;
+  const diasAbertura = ticket.created_at
+    ? Math.floor((Date.now() - new Date(ticket.created_at)) / 86400000)
+    : 0;
+  const solicitarEnvio = !column.is_done && !ticket.tem_recebimento
+    && diasAbertura >= DIAS_SOLICITAR_ENVIO;
+
   const c = contatoInfo(ticket, column);
   const vencimento = formatVencimento(c.vencimento);
 
@@ -127,6 +138,19 @@ export default function TicketCard({ ticket, column, onOpen }) {
         {!column.is_done && g.dias != null && g.faixa === "normal" && (
           <div style={{ fontSize: 11, color: "var(--text-tertiary)", marginTop: 2 }}>
             🗓 {g.dias} {g.dias === 1 ? "dia" : "dias"} desde a abertura
+          </div>
+        )}
+
+        {solicitarEnvio && (
+          <div style={{ marginTop: 8 }}>
+            <span title={`${diasAbertura} dias desde a abertura sem receber a impressora`}
+                  style={{ fontSize: 11, fontWeight: 700,
+                           background: "#fceaea", color: "#a32d2d",
+                           border: "1px solid #e03e3e",
+                           borderRadius: 10, padding: "2px 10px",
+                           display: "inline-block" }}>
+              📦 Solicitar envio
+            </span>
           </div>
         )}
 

@@ -30,7 +30,9 @@ def list_tickets(db: Session = Depends(get_db)):
                s.name AS fornecedor_nome,
                df.name AS defeito_nome,
                dsf.name AS desfecho_nome, dsf.impacto AS desfecho_impacto,
-               u.nome AS responsavel_nome, u.username AS responsavel_username
+               u.nome AS responsavel_nome, u.username AS responsavel_username,
+               -- Se já existe recebimento, a impressora chegou: some o alerta de envio.
+               EXISTS(SELECT 1 FROM recebimentos r WHERE r.ticket_id = t.id) AS tem_recebimento
         FROM tickets t
         JOIN printer_models m ON m.id = t.printer_model_id
         JOIN printer_brands b ON b.id = m.brand_id

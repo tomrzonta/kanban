@@ -154,7 +154,7 @@ function renderComGrifo(full, novos, grifoCor) {
       const novo = novos.some(([a, b]) => ini >= a && ini < b);
       pedacos.push(
         novo
-          ? <mark key={`${key}-m${k}`} style={{ background: grifoCor, color: "inherit",
+          ? <mark key={`${key}-m${k}`} style={{ background: grifoCor, color: "#3a2c00",
                                                 borderRadius: 3, padding: "0 2px" }}>
               {inline(t, `${key}-m${k}`)}
             </mark>
