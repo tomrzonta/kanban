@@ -19,6 +19,8 @@ from app.models.compra import Compra
 from app.models.gasto import CategoriaGasto, GastoTicket
 from app.models.retida import (EstadoRetida, ImpressoraRetida, RetidaHistorico,
                                 RetidaPeca, RetidaNota, PecaPadrao)
+from app.models.checklist import (ChecklistComponente, ModeloChecklist,
+                                   RecebimentoChecklist)
 
 __all__ = [
     "PrinterBrand", "PrinterModel", "Supplier", "DefectType", "Desfecho",
@@ -30,4 +32,5 @@ __all__ = [
     "CategoriaGasto", "GastoTicket",
     "EstadoRetida", "ImpressoraRetida", "RetidaHistorico", "RetidaPeca",
     "RetidaNota", "PecaPadrao",
+    "ChecklistComponente", "ModeloChecklist", "RecebimentoChecklist",
 ]

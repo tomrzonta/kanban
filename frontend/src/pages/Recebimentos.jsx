@@ -5,7 +5,7 @@ import TicketDetail from "../components/TicketDetail";
 // Aba de Recebimentos (RMA): registra a chegada de impressoras com defeito,
 // vinculadas a um ticket em aberto. Ao registrar, o ticket pode mover para a
 // coluna marcada como "destino ao receber".
-export default function Recebimentos() {
+export default function Recebimentos({ onReter }) {
   const [itens, setItens] = useState([]);
   const [condicoes, setCondicoes] = useState([]);
   const [erro, setErro] = useState(null);
@@ -27,6 +27,11 @@ export default function Recebimentos() {
   const [form, setForm] = useState(vazio);
   const [fotos, setFotos] = useState([]);          // fotos de unboxing a anexar
   const [enviandoFotos, setEnviandoFotos] = useState(false);
+  // Checklist do modelo do ticket: componentes esperados, estados possíveis e
+  // os valores preenchidos ({ [nome]: { estado, comentario } }).
+  const [checklistComp, setChecklistComp] = useState([]);
+  const [checklistEstados, setChecklistEstados] = useState([]);
+  const [checklistVals, setChecklistVals] = useState({});
 
   const carregar = useCallback(() => {
     api.listRecebimentos().then(setItens);
@@ -36,6 +41,7 @@ export default function Recebimentos() {
     carregar();
     api.recebimentoCondicoes().then(setCondicoes);
     api.listColumns().then(setColumns);
+    api.listChecklistEstados().then(setChecklistEstados).catch(() => {});
   }, [carregar]);
 
   // Monta o objeto do ticket (a partir dos aliases vindos do recebimento) e
@@ -91,11 +97,22 @@ export default function Recebimentos() {
     setForm((f) => ({ ...f, ticket_id: t.id }));
     setSugestoes([]);
     setBuscaTicket("");
+    // Carrega o checklist do modelo do ticket.
+    setChecklistComp([]); setChecklistVals({});
+    if (t.printer_model_id) {
+      api.checklistDoModelo(t.printer_model_id).then((rows) => {
+        setChecklistComp(rows);
+        const init = {};
+        rows.forEach((r) => { init[r.componente_nome] = { estado: "", comentario: "" }; });
+        setChecklistVals(init);
+      }).catch(() => {});
+    }
   }
 
   function limparTicket() {
     setTicketSel(null);
     setForm((f) => ({ ...f, ticket_id: "" }));
+    setChecklistComp([]); setChecklistVals({});
   }
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
@@ -104,6 +121,23 @@ export default function Recebimentos() {
     setErro(null); setMsg(null);
     if (!form.ticket_id) { setErro("Selecione o ticket vinculado."); return; }
     if (!form.condicao) { setErro("Selecione a condição do item."); return; }
+    // Checklist obrigatório: o modelo precisa ter checklist e todos os estados preenchidos.
+    if (checklistComp.length === 0) {
+      setErro("O modelo desta impressora não tem checklist cadastrado. "
+        + "Cadastre no Catálogo → Checklist antes de receber.");
+      return;
+    }
+    for (const c of checklistComp) {
+      if (!checklistVals[c.componente_nome]?.estado) {
+        setErro(`Preencha o estado do componente "${c.componente_nome}" no checklist.`);
+        return;
+      }
+    }
+    const checklist = checklistComp.map((c) => ({
+      componente_nome: c.componente_nome,
+      estado: checklistVals[c.componente_nome].estado,
+      comentario: checklistVals[c.componente_nome].comentario || null,
+    }));
     try {
       const ticketId = form.ticket_id;
       const r = await api.createRecebimento({
@@ -111,6 +145,7 @@ export default function Recebimentos() {
         quantidade: Number(form.quantidade),
         numero_nf: form.numero_nf || null,
         observacao: form.observacao || null,
+        checklist,
       });
 
       // Sobe as fotos de unboxing como anexos do ticket (se houver).
@@ -130,6 +165,7 @@ export default function Recebimentos() {
       setForm(vazio);
       setFotos([]);
       setTicketSel(null);
+      setChecklistComp([]); setChecklistVals({});
       setBuscaTicket("");
       carregar();
       // Feedback: avisa se moveu o ticket ou se faltou marcar a coluna.
@@ -238,6 +274,46 @@ export default function Recebimentos() {
                       style={{ width: "100%", resize: "vertical" }} />
           </div>
 
+          {ticketSel && (
+            <div style={{ gridColumn: "1 / -1" }}>
+              <label>Checklist de recebimento *</label>
+              {checklistComp.length === 0 ? (
+                <div style={{ fontSize: 13, color: "var(--red)",
+                              background: "var(--surface)", border: "1px solid var(--red)",
+                              borderRadius: "var(--radius)", padding: "10px 12px", marginTop: 4 }}>
+                  ⚠ O modelo desta impressora não tem checklist cadastrado.
+                  Cadastre em <strong>Catálogo → Checklist</strong> antes de receber.
+                </div>
+              ) : (
+                <div style={{ display: "grid", gap: 8, marginTop: 4 }}>
+                  {checklistComp.map((c) => {
+                    const v = checklistVals[c.componente_nome] || { estado: "", comentario: "" };
+                    return (
+                      <div key={c.id} style={{ display: "flex", gap: 8, flexWrap: "wrap",
+                                               alignItems: "center", background: "var(--surface)",
+                                               border: "1px solid var(--border)",
+                                               borderRadius: "var(--radius)", padding: "8px 10px" }}>
+                        <span style={{ flex: "1 1 140px", fontWeight: 500 }}>{c.componente_nome}</span>
+                        <select value={v.estado}
+                                onChange={(e) => setChecklistVals((s) => ({ ...s,
+                                  [c.componente_nome]: { ...v, estado: e.target.value } }))}
+                                style={{ flex: "0 1 160px",
+                                         borderColor: v.estado ? "var(--border)" : "var(--red)" }}>
+                          <option value="">Estado…</option>
+                          {checklistEstados.map((e) => <option key={e} value={e}>{e}</option>)}
+                        </select>
+                        <input value={v.comentario}
+                               onChange={(e) => setChecklistVals((s) => ({ ...s,
+                                 [c.componente_nome]: { ...v, comentario: e.target.value } }))}
+                               placeholder="Comentário (opcional)" style={{ flex: "2 1 180px" }} />
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
           <div style={{ gridColumn: "1 / -1" }}>
             <label>Fotos do unboxing (opcional)</label>
             <input type="file" accept="image/*" multiple
@@ -292,6 +368,7 @@ export default function Recebimentos() {
                 <th style={{ padding: "8px 6px", fontWeight: 500 }}>Qtd</th>
                 <th style={{ padding: "8px 6px", fontWeight: 500 }}>Condição</th>
                 <th style={{ padding: "8px 6px", fontWeight: 500 }}>NF</th>
+                <th style={{ padding: "8px 6px", fontWeight: 500 }}></th>
               </tr>
             </thead>
             <tbody>
@@ -325,6 +402,15 @@ export default function Recebimentos() {
                   </td>
                   <td style={{ padding: "8px 6px", color: "var(--text-secondary)" }}>
                     {r.numero_nf || "—"}
+                  </td>
+                  <td style={{ padding: "8px 6px" }} onClick={(e) => e.stopPropagation()}>
+                    {onReter && r.codigo_interno && (
+                      <button onClick={() => onReter(r.codigo_interno)}
+                              title="Cadastrar esta impressora como retida"
+                              style={{ padding: "2px 10px", whiteSpace: "nowrap" }}>
+                        Reter
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}

@@ -6,7 +6,7 @@ import { useToast } from "../components/Toast";
 // após troca de garantia. Cada uma tem origem (ticket ou avulsa), um estado que
 // evolui (com histórico) e pode ser canibalizada (peças retiradas).
 
-export default function Retidas({ isAdmin }) {
+export default function Retidas({ isAdmin, reterTicket, onConsumidoReter }) {
   const [itens, setItens] = useState([]);
   const [estados, setEstados] = useState([]);
   const [busca, setBusca] = useState("");
@@ -15,6 +15,15 @@ export default function Retidas({ isAdmin }) {
   const [detalhe, setDetalhe] = useState(null);    // retida aberta no painel
   const [gerirEstados, setGerirEstados] = useState(false);
   const toast = useToast();
+
+  // Se veio um pedido de "reter" a partir de um recebimento, abre o editor já
+  // com o código do ticket para puxar os dados.
+  useEffect(() => {
+    if (reterTicket) {
+      setEditando({ ticket_ref_inicial: reterTicket });
+      onConsumidoReter && onConsumidoReter();
+    }
+  }, [reterTicket, onConsumidoReter]);
 
   const carregar = useCallback(() => {
     api.listRetidas({ q: busca, estadoId: filtroEstado || undefined })
@@ -149,21 +158,27 @@ function EditorRetida({ retida, estados, onClose, onSaved }) {
   const toast = useToast();
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
-  // Puxa marca/modelo/SN de um ticket informado (aceita o código GAR).
-  async function puxarTicket() {
-    const ref = form.ticket_id.trim();
+  // Puxa marca/modelo/SN de um ticket (aceita o código GAR). `ref` opcional
+  // permite chamar automaticamente (ex: ao vir do botão "Reter" no recebimento).
+  async function puxarTicket(refArg) {
+    const ref = (typeof refArg === "string" ? refArg : form.ticket_id).trim();
     if (!ref) { toast.error("Informe o código do ticket (ex: GAR-2026-0001)."); return; }
     try {
       const d = await api.dadosDoTicket(ref);
       setForm((f) => ({ ...f,
-        ticket_id: d.id, // guarda o UUID para o vínculo, mesmo tendo digitado o código
-        ticket_codigo: d.codigo_interno,
+        ticket_id: d.id, ticket_codigo: d.codigo_interno,
         marca: d.marca || f.marca, modelo: d.modelo || f.modelo,
         numero_serie: d.serial_number || f.numero_serie,
         condicao: f.condicao || d.problema || "" }));
       toast.success(`Dados do ticket ${d.codigo_interno} carregados.`);
     } catch (e) { toast.error("Ticket não encontrado. Confira o código (ex: GAR-2026-0001)."); }
   }
+
+  // Se o editor foi aberto pelo botão "Reter" (recebimento), já puxa os dados.
+  useEffect(() => {
+    if (retida.ticket_ref_inicial) puxarTicket(retida.ticket_ref_inicial);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function salvar() {
     setSalvando(true);

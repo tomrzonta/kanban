@@ -15,6 +15,12 @@ from app.core.security import usuario_atual
 router = APIRouter(prefix="/api/recebimentos", tags=["recebimentos"])
 
 
+class ChecklistItemIn(BaseModel):
+    componente_nome: str
+    estado: str
+    comentario: str | None = None
+
+
 class RecebimentoIn(BaseModel):
     ticket_id: str
     data_recebimento: date | None = None
@@ -22,6 +28,7 @@ class RecebimentoIn(BaseModel):
     quantidade: int = 1
     condicao: str
     observacao: str | None = None
+    checklist: list[ChecklistItemIn] = []
 
 
 @router.get("/condicoes")
@@ -39,6 +46,7 @@ def tickets_abertos(q: str | None = None, db: Session = Depends(get_db)):
     """
     base = """
         SELECT t.id, t.codigo_interno, t.titulo, t.serial_number,
+               t.printer_model_id,
                b.name AS fabricante, m.name AS modelo
         FROM tickets t
         JOIN printer_models m ON m.id = t.printer_model_id
@@ -116,6 +124,27 @@ def criar(p: RecebimentoIn, user: models.User = Depends(usuario_atual),
     if p.condicao not in models.CONDICOES:
         raise HTTPException(400, "Condição inválida.")
 
+    # Checklist obrigatório: o modelo do ticket precisa ter um checklist definido,
+    # e todos os componentes precisam vir com um estado válido preenchido.
+    from app.routers.checklist import ESTADOS_CHECKLIST
+    componentes_modelo = db.execute(text("""
+        SELECT c.name FROM modelo_checklist mc
+        JOIN checklist_componentes c ON c.id = mc.componente_id
+        WHERE mc.modelo_id = :m ORDER BY mc.ordem, c.name
+    """), {"m": ticket.printer_model_id}).fetchall()
+    esperados = [r[0] for r in componentes_modelo]
+    if not esperados:
+        raise HTTPException(
+            400, "O modelo desta impressora ainda não tem checklist cadastrado. "
+                 "Cadastre o checklist do modelo no Catálogo antes de receber.")
+    recebidos = {i.componente_nome: i for i in p.checklist}
+    for nome in esperados:
+        item = recebidos.get(nome)
+        if not item or not (item.estado or "").strip():
+            raise HTTPException(400, f"Preencha o estado do componente \"{nome}\".")
+        if item.estado not in ESTADOS_CHECKLIST:
+            raise HTTPException(400, f"Estado inválido para \"{nome}\".")
+
     rec = models.Recebimento(
         ticket_id=p.ticket_id,
         data_recebimento=p.data_recebimento or date.today(),
@@ -126,6 +155,14 @@ def criar(p: RecebimentoIn, user: models.User = Depends(usuario_atual),
         criado_por_id=user.id,
     )
     db.add(rec)
+    db.flush()  # garante rec.id para vincular o checklist
+
+    # Grava os itens do checklist preenchidos (snapshot do nome do componente).
+    for nome in esperados:
+        item = recebidos[nome]
+        db.add(models.RecebimentoChecklist(
+            recebimento_id=rec.id, componente_nome=nome,
+            estado=item.estado, comentario=(item.comentario or "").strip() or None))
 
     # Evento na timeline do ticket.
     from app.services.eventos import registrar_evento

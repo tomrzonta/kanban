@@ -168,6 +168,17 @@ export const api = {
     request("/api/retidas/pecas-padrao", { method: "POST", body: JSON.stringify({ name, active: 1, ordem: 0 }) }),
   deletePecaPadrao: (id) =>
     request(`/api/retidas/pecas-padrao/${id}`, { method: "DELETE" }),
+  // Checklist de recebimento
+  listChecklistEstados: () => request("/api/checklist/estados"),
+  listChecklistComponentes: () => request("/api/checklist/componentes"),
+  createChecklistComponente: (name) =>
+    request("/api/checklist/componentes", { method: "POST", body: JSON.stringify({ name }) }),
+  deleteChecklistComponente: (id) =>
+    request(`/api/checklist/componentes/${id}`, { method: "DELETE" }),
+  checklistDoModelo: (modeloId) => request(`/api/checklist/modelo/${modeloId}`),
+  definirChecklistModelo: (modeloId, componenteIds) =>
+    request(`/api/checklist/modelo/${modeloId}`, { method: "PUT",
+      body: JSON.stringify({ componente_ids: componenteIds }) }),
   updateCompra: (id, data) =>
     request(`/api/compras/${id}`, { method: "PUT", body: JSON.stringify(data) }),
   deleteCompra: (id) =>

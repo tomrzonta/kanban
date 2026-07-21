@@ -21,6 +21,8 @@ export default function App() {
   const [user, setUser] = useState(null);
   const [carregando, setCarregando] = useState(true);
   const [view, setView] = useState("kanban");
+  // Quando setado (código GAR), abre a aba Retidas já criando a retida vinculada.
+  const [reterTicket, setReterTicket] = useState(null);
   const { tema, alternar } = useTheme();
 
   // Ao abrir, se há token salvo, valida com /me para recuperar a sessão.
@@ -114,9 +116,12 @@ export default function App() {
 
       <div className={`app-content${view !== "kanban" ? " scrollable" : ""}`}>
         {view === "kanban" && <KanbanBoard isAdmin={isAdmin} user={user} />}
-        {view === "recebimentos" && <Recebimentos />}
+        {view === "recebimentos" && <Recebimentos
+          onReter={(codigo) => { setReterTicket(codigo); setView("retidas"); }} />}
         {view === "compras" && <Compras />}
-        {view === "retidas" && <Retidas isAdmin={isAdmin} />}
+        {view === "retidas" && <Retidas isAdmin={isAdmin}
+          reterTicket={reterTicket}
+          onConsumidoReter={() => setReterTicket(null)} />}
         {view === "concluidos" && <Concluidos isAdmin={isAdmin} />}
         {view === "dashboard" && <Dashboard />}
         {view === "diretoria" && isAdmin && <Diretoria />}
