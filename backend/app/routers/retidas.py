@@ -178,6 +178,18 @@ def atualizar(rid: int, p: RetidaIn, user: models.User = Depends(usuario_atual),
     r.marca = p.marca; r.modelo = p.modelo
     r.numero_serie = (p.numero_serie or "").strip() or None
     r.condicao = p.condicao; r.local = p.local; r.observacao = p.observacao
+    # Se o estado mudou pela edição, atualiza e registra no histórico (como o
+    # fluxo de "mudar estado" faz), para não perder o rastro.
+    if p.estado_id is not None and p.estado_id != r.estado_id:
+        est_novo = db.query(models.EstadoRetida).get(p.estado_id)
+        if not est_novo:
+            raise HTTPException(404, "Estado não encontrado.")
+        est_antigo = db.query(models.EstadoRetida).get(r.estado_id) if r.estado_id else None
+        db.add(models.RetidaHistorico(
+            retida_id=r.id,
+            estado_de=est_antigo.name if est_antigo else None,
+            estado_para=est_novo.name, local=p.local, nota=None, autor_id=user.id))
+        r.estado_id = p.estado_id
     registrar_auditoria(db, user, "editar", "retida",
                         f"Editou impressora retida (SN: {r.numero_serie or '—'}).")
     db.commit()

@@ -10,9 +10,18 @@ router = APIRouter(prefix="/api/catalog", tags=["catalog"])
 
 
 # --- Marcas ---
+def _norm(s):
+    """Normaliza nome para detectar duplicatas (ignora espaços e maiúsculas)."""
+    return "".join((s or "").lower().split())
+
+
 @router.post("/brands", response_model=schemas.BrandOut, dependencies=[Depends(requer_admin)])
 def create_brand(p: schemas.BrandIn, db: Session = Depends(get_db)):
-    b = models.PrinterBrand(name=p.name)
+    alvo = _norm(p.name)
+    for b in db.query(models.PrinterBrand).all():
+        if _norm(b.name) == alvo:
+            raise HTTPException(400, f"Já existe um fabricante \"{b.name}\".")
+    b = models.PrinterBrand(name=p.name.strip())
     db.add(b)
     db.commit()
     db.refresh(b)
@@ -27,6 +36,11 @@ def list_brands(db: Session = Depends(get_db)):
 # --- Modelos ---
 @router.post("/models", response_model=schemas.ModelOut, dependencies=[Depends(requer_admin)])
 def create_model(p: schemas.ModelIn, db: Session = Depends(get_db)):
+    alvo = _norm(p.name)
+    existentes = db.query(models.PrinterModel).filter_by(brand_id=p.brand_id).all()
+    for m in existentes:
+        if _norm(m.name) == alvo:
+            raise HTTPException(400, f"Este fabricante já tem o modelo \"{m.name}\".")
     m = models.PrinterModel(**p.model_dump())
     db.add(m)
     db.commit()

@@ -274,6 +274,9 @@ function DetalheRetida({ retida, estados, todas, onClose, onMudou }) {
   const [notaMudanca, setNotaMudanca] = useState("");
   // Destino da peça: tipo escolhido (texto | retida | ticket) + valor.
   const [novaPeca, setNovaPeca] = useState({ peca: "", destino_ticket_ref: "" });
+  // Estado/local exibidos no cabeçalho — atualizam ao mudar, sem fechar o painel.
+  const [estadoAtual, setEstadoAtual] = useState(retida.estado_nome);
+  const [localAtual, setLocalAtual] = useState(retida.local);
   const toast = useToast();
 
   const carregar = useCallback(() => {
@@ -291,6 +294,10 @@ function DetalheRetida({ retida, estados, todas, onClose, onMudou }) {
         estado_id: Number(novoEstado),
         local: localMudanca || null, nota: notaMudanca || null });
       toast.success("Estado atualizado.");
+      // Atualiza o cabeçalho na hora (o objeto 'retida' é prop, não muda sozinho).
+      const est = estados.find((e) => e.id === Number(novoEstado));
+      if (est) setEstadoAtual(est.name);
+      if (localMudanca) setLocalAtual(localMudanca);
       setNovoEstado(""); setLocalMudanca(""); setNotaMudanca("");
       carregar(); onMudou();
     } catch (e) { toast.error(String(e.message || e)); }
@@ -335,8 +342,8 @@ function DetalheRetida({ retida, estados, todas, onClose, onMudou }) {
         </div>
         <div style={{ fontSize: 13, color: "var(--text-secondary)", marginBottom: 16 }}>
           Origem: {retida.ticket_codigo || "Avulsa"} · Estado atual:{" "}
-          <strong>{retida.estado_nome || "—"}</strong>
-          {retida.local && ` · Local: ${retida.local}`}
+          <strong>{estadoAtual || "—"}</strong>
+          {localAtual && ` · Local: ${localAtual}`}
         </div>
 
         {/* Mudar estado */}

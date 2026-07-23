@@ -181,11 +181,12 @@ def sincronizar_catalogo(user: models.User = Depends(usuario_atual),
                          db: Session = Depends(get_db)):
     """Cria no catálogo as marcas e modelos que aparecem nas compras e ainda não
     existem. Modelos novos entram com preço zero (ajustável depois no Catálogo).
-    Casamento case-insensitive; não duplica o que já existe."""
-    # Marcas já no catálogo (nome minúsculo -> id).
-    marcas_cat = {m[1].strip().lower(): m[0] for m in db.execute(text(
+    Casamento case-insensitive e ignorando espaços; não duplica o que já existe."""
+    _norm = lambda s: "".join((s or "").lower().split())
+    # Marcas já no catálogo (nome normalizado -> id).
+    marcas_cat = {_norm(m[1]): m[0] for m in db.execute(text(
         "SELECT id, name FROM printer_brands")).all() if m[1]}
-    modelos_cat = {(m[0], m[1].strip().lower()) for m in db.execute(text(
+    modelos_cat = {(m[0], _norm(m[1])) for m in db.execute(text(
         "SELECT brand_id, name FROM printer_models")).all() if m[1]}
 
     # Pares (marca, modelo) distintos das compras.
@@ -198,7 +199,7 @@ def sincronizar_catalogo(user: models.User = Depends(usuario_atual),
     marcas_criadas, modelos_criados = 0, 0
     for p in pares:
         marca, modelo = p["marca"], p["modelo"]
-        chave_marca = marca.strip().lower()
+        chave_marca = _norm(marca)
         # Cria a marca se não existe.
         if chave_marca not in marcas_cat:
             nova = models.PrinterBrand(name=marca)
@@ -209,7 +210,7 @@ def sincronizar_catalogo(user: models.User = Depends(usuario_atual),
         brand_id = marcas_cat[chave_marca]
         # Cria o modelo (se houver) se não existe naquela marca.
         if modelo and modelo.strip():
-            chave_modelo = (brand_id, modelo.strip().lower())
+            chave_modelo = (brand_id, _norm(modelo))
             if chave_modelo not in modelos_cat:
                 db.add(models.PrinterModel(brand_id=brand_id, name=modelo,
                                            current_price=0))
